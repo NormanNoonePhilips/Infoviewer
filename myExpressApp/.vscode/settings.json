@@ -1,0 +1,4 @@
+{
+    "appService.defaultWebAppToDeploy": "/subscriptions/20410a4f-c7a6-4f4c-a83c-7328f0b77681/resourceGroups/InfoviewerResourceGroup/providers/Microsoft.Web/sites/Infoviewer",
+    "appService.deploySubpath": "."
+}
