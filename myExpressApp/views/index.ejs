@@ -10,25 +10,55 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
   <script src="https://randojs.com/1.0.0.js"></script>
-        <script>
-            function showRandomNumber(){
-                document.getElementById("myNumber1").innerHTML = rando(5, 10);
-                document.getElementById("myNumber2").innerHTML = rando(10, 20);
-                document.getElementById("myNumber3").innerHTML = rando(12, 22);
-                document.getElementById("myNumber4").innerHTML = rando(1, 8);
-            }
-        </script>
-
+  
   <style>
-    body { font-family: Inter, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial; margin: 18px; }
-    .container { max-width: 1000px; margin: 0 auto; }
-    h1 { font-size: 1.4rem; margin-bottom: 6px; }
-    p { margin-top: 0; color: #444; }
-    .chart-wrap { display: grid; grid-template-columns: 1fr; gap: 18px; }
-    .card { padding: 12px; border-radius: 12px; box-shadow: 0 6px 18px rgba(0,0,0,0.06); background: #fff; }
-    canvas { width: 100% !important; height: 360px !important; }
-    .meta { margin-top: 8px; font-size: 0.9rem; color: #666; }
-    .error { color: #b00020; }
+    body {
+      font-family: Inter, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial;
+      margin: 18px;
+    }
+
+    .container {
+      max-width: 1000px;
+      margin: 0 auto;
+    }
+
+    h1 {
+      font-size: 1.4rem;
+      margin-bottom: 6px;
+    }
+
+    p {
+      margin-top: 0;
+      color: #444;
+    }
+
+    .chart-wrap {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 18px;
+    }
+
+    .card {
+      padding: 12px;
+      border-radius: 12px;
+      box-shadow: 0 6px 18px rgba(0, 0, 0, 0.06);
+      background: #fff;
+    }
+
+    canvas {
+      width: 100% !important;
+      height: 360px !important;
+    }
+
+    .meta {
+      margin-top: 8px;
+      font-size: 0.9rem;
+      color: #666;
+    }
+
+    .error {
+      color: #b00020;
+    }
   </style>
 
 </head>
@@ -75,10 +105,10 @@
     // 1) Simple array: [ { "label": "2025-10-18T12:00:00Z", "value": 123 }, ... ]
     // 2) Series object for multi-series: { "series": [ { "name":"A","points":[{"ts":"...","v":...},...]}, ... ] }
     const FALLBACK_JSON = [
-      { "label": "2000-01-01T09:00:00Z", "value": myNumber1 },
-      { "label": "2000-01-01T10:00:00Z", "value": myNumber2 },
-      { "label": "2000-01-01T11:00:00Z", "value": myNumber3 },
-      { "label": "2000-01-01T12:00:00Z", "value": myNumber4 }
+      { "label": "2000-01-01T09:00:00Z", "value": 10 },
+      { "label": "2000-01-01T10:00:00Z", "value": 22 },
+      { "label": "2000-01-01T11:00:00Z", "value": 17 },
+      { "label": "2000-01-01T12:00:00Z", "value": 8 }
     ];
 
     // Helpers to normalize different JSON shapes to a common structure
@@ -206,5 +236,5 @@
 
   </script>
 </body>
-</html>
 
+</html>
