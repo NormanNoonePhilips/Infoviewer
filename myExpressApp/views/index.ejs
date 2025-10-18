@@ -1,11 +1,210 @@
-<!DOCTYPE html>
-<html>
-  <head>
-    <title><%= title %></title>
-    <link rel='stylesheet' href='/stylesheets/style.css' />
-  </head>
-  <body>
-    <h1><%= title %></h1>
-    <p>Welcome to <%= title %></p>
-  </body>
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+
+  <title>Azure WebApp — Charts from JSON</title>
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <script src="https://randojs.com/1.0.0.js"></script>
+        <script>
+            function showRandomNumber(){
+                document.getElementById("myNumber1").innerHTML = rando(5, 10);
+                document.getElementById("myNumber2").innerHTML = rando(10, 20);
+                document.getElementById("myNumber3").innerHTML = rando(12, 22);
+                document.getElementById("myNumber4").innerHTML = rando(1, 8);
+            }
+        </script>
+
+  <style>
+    body { font-family: Inter, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial; margin: 18px; }
+    .container { max-width: 1000px; margin: 0 auto; }
+    h1 { font-size: 1.4rem; margin-bottom: 6px; }
+    p { margin-top: 0; color: #444; }
+    .chart-wrap { display: grid; grid-template-columns: 1fr; gap: 18px; }
+    .card { padding: 12px; border-radius: 12px; box-shadow: 0 6px 18px rgba(0,0,0,0.06); background: #fff; }
+    canvas { width: 100% !important; height: 360px !important; }
+    .meta { margin-top: 8px; font-size: 0.9rem; color: #666; }
+    .error { color: #b00020; }
+  </style>
+
+</head>
+
+<body onload="showRandomNumber();">
+
+  <div class="container">
+    <h1>Mockup charts from JSON (Azure WebApp)</h1>
+
+    <div class="chart-wrap">
+      <div class="card">
+        <canvas id="lineChart"></canvas>
+        <div class="meta">Line chart (time series).</div>
+      </div>
+
+      <div class="card">
+        <canvas id="barChart"></canvas>
+        <div class="meta">Bar chart (aggregated values).</div>
+      </div>
+
+      <div id="log" class="meta"></div>
+    </div>
+  </div>
+
+  <script>
+    /*************************************************************************
+     * Configuration
+     * - DATA_URL: where your JSON lives. If the JSON is served from the same
+     *   webapp, a relative URL like '/data/values.json' works.
+     * - POLL_INTERVAL_MS: optional auto-refresh interval (set to null to disable)
+     *************************************************************************/
+    const DATA_URL = '/data/values.json'; // <-- change to your actual JSON endpoint
+    const POLL_INTERVAL_MS = 30_000;     // fetch every 30s (set to null to disable)
+
+    // Convenience logger
+    const logEl = document.getElementById('log');
+    function log(msg, isError = false) {
+      logEl.textContent = msg;
+      logEl.className = isError ? 'meta error' : 'meta';
+    }
+
+    // Sample fallback JSON (used if fetch fails) — adapt to your real schema.
+    // Two supported shapes in this example:
+    // 1) Simple array: [ { "label": "2025-10-18T12:00:00Z", "value": 123 }, ... ]
+    // 2) Series object for multi-series: { "series": [ { "name":"A","points":[{"ts":"...","v":...},...]}, ... ] }
+    const FALLBACK_JSON = [
+      { "label": "2000-01-01T09:00:00Z", "value": myNumber1 },
+      { "label": "2000-01-01T10:00:00Z", "value": myNumber2 },
+      { "label": "2000-01-01T11:00:00Z", "value": myNumber3 },
+      { "label": "2000-01-01T12:00:00Z", "value": myNumber4 }
+    ];
+
+    // Helpers to normalize different JSON shapes to a common structure
+    function normalizeJson(json) {
+      // If it's an array of {label, value}
+      if (Array.isArray(json) && json.length > 0 && 'label' in json[0]) {
+        return {
+          labels: json.map(r => r.label),
+          series: [{ name: 'Series 1', values: json.map(r => Number(r.value)) }]
+        };
+      }
+
+      // If it's already { series: [ { name, points: [{ts, v}] } ] }
+      if (json && Array.isArray(json.series)) {
+        const labels = Array.from(new Set(json.series.flatMap(s => s.points.map(p => p.ts)))).sort();
+        const series = json.series.map(s => ({
+          name: s.name,
+          values: labels.map(ts => {
+            const p = (s.points || []).find(x => x.ts === ts);
+            return p ? Number(p.v) : null; // allow nulls where missing
+          })
+        }));
+        return { labels, series };
+      }
+
+      // If nothing matches, try to guess: maybe object with timestamp:value map
+      if (json && typeof json === 'object' && !Array.isArray(json)) {
+        const entries = Object.entries(json).map(([k, v]) => ({ label: k, value: v }));
+        return normalizeJson(entries);
+      }
+
+      // fallback
+      return normalizeJson(FALLBACK_JSON);
+    }
+
+    // Utility: format ISO timestamps for labels (keeps them short)
+    function humanLabel(ts) {
+      try {
+        const d = new Date(ts);
+        return isNaN(d) ? String(ts) : d.toLocaleString();
+      } catch (e) {
+        return String(ts);
+      }
+    }
+
+    // Create Chart.js instances with nice defaults
+    const ctxLine = document.getElementById('lineChart').getContext('2d');
+    const ctxBar = document.getElementById('barChart').getContext('2d');
+
+    const lineChart = new Chart(ctxLine, {
+      type: 'line',
+      data: { labels: [], datasets: [] },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: { mode: 'index', intersect: false },
+        stacked: false,
+        plugins: { title: { display: true, text: 'Time series' } },
+        scales: { x: { display: true }, y: { display: true, beginAtZero: true } }
+      }
+    });
+
+    const barChart = new Chart(ctxBar, {
+      type: 'bar',
+      data: { labels: [], datasets: [] },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { title: { display: true, text: 'Aggregated values' } },
+        scales: { x: { display: true }, y: { display: true, beginAtZero: true } }
+      }
+    });
+
+    // Update charts with normalized data
+    function updateCharts(normalized) {
+      const labels = normalized.labels.map(l => humanLabel(l));
+
+      // Update line chart: one dataset per series
+      lineChart.data.labels = labels;
+      lineChart.data.datasets = normalized.series.map((s, i) => ({
+        label: s.name,
+        data: s.values,
+        tension: 0.25,
+        spanGaps: true // connect across nulls if you prefer
+      }));
+      lineChart.update();
+
+      // Update bar chart: one bar per series aggregated (sum)
+      const aggLabels = normalized.series.map(s => s.name);
+      const aggValues = normalized.series.map(s => s.values.reduce((acc, v) => acc + (v || 0), 0));
+
+      barChart.data.labels = aggLabels;
+      barChart.data.datasets = [{ label: 'Sum', data: aggValues }];
+      barChart.update();
+    }
+
+    // Fetch JSON and refresh charts (with basic error handling)
+    async function fetchAndRender() {
+      try {
+        log('Fetching JSON from ' + DATA_URL + ' ...');
+        const resp = await fetch(DATA_URL, { cache: 'no-store' });
+        if (!resp.ok) throw new Error('HTTP ' + resp.status);
+        const json = await resp.json();
+        const normalized = normalizeJson(json);
+        updateCharts(normalized);
+        log('Charts updated from ' + DATA_URL + ' — ' + new Date().toLocaleTimeString());
+      } catch (err) {
+        console.error('Failed to fetch/parse JSON:', err);
+        log('Failed to load JSON — using fallback data. (' + err.message + ')', true);
+        const normalized = normalizeJson(FALLBACK_JSON);
+        updateCharts(normalized);
+      }
+    }
+
+    // Initial load
+    fetchAndRender();
+
+    // Optional polling
+    if (POLL_INTERVAL_MS) {
+      setInterval(fetchAndRender, POLL_INTERVAL_MS);
+    }
+
+    // Expose for debugging in console
+    window._fetchAndRender = fetchAndRender;
+
+  </script>
+</body>
 </html>
+
