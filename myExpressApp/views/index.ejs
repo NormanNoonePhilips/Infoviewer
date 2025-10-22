@@ -9,8 +9,6 @@
 
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
-  <script src="https://randojs.com/1.0.0.js"></script>
-  
   <style>
     body {
       font-family: Inter, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial;
@@ -63,7 +61,7 @@
 
 </head>
 
-<body onload="showRandomNumber();">
+<body>
 
   <div class="container">
     <h1>Mockup charts from JSON (Azure WebApp)</h1>
@@ -90,7 +88,7 @@
      *   webapp, a relative URL like '/data/values.json' works.
      * - POLL_INTERVAL_MS: optional auto-refresh interval (set to null to disable)
      *************************************************************************/
-    const DATA_URL = '/data/values.json'; // <-- change to your actual JSON endpoint
+    const DATA_URL = '/api/data';
     const POLL_INTERVAL_MS = 30_000;     // fetch every 30s (set to null to disable)
 
     // Convenience logger
@@ -105,10 +103,10 @@
     // 1) Simple array: [ { "label": "2025-10-18T12:00:00Z", "value": 123 }, ... ]
     // 2) Series object for multi-series: { "series": [ { "name":"A","points":[{"ts":"...","v":...},...]}, ... ] }
     const FALLBACK_JSON = [
-      { "label": "2000-01-01T09:00:00Z", "value": 10 },
-      { "label": "2000-01-01T10:00:00Z", "value": 22 },
-      { "label": "2000-01-01T11:00:00Z", "value": 17 },
-      { "label": "2000-01-01T12:00:00Z", "value": 8 }
+      { "label": "2000-01-01T09:00:00Z", "value": 1 },
+      { "label": "2000-01-01T10:00:00Z", "value": 1 },
+      { "label": "2000-01-01T11:00:00Z", "value": 1 },
+      { "label": "2000-01-01T12:00:00Z", "value": 1 }
     ];
 
     // Helpers to normalize different JSON shapes to a common structure
@@ -192,7 +190,7 @@
         label: s.name,
         data: s.values,
         tension: 0.25,
-        spanGaps: true // connect across nulls if you prefer
+        spanGaps: true
       }));
       lineChart.update();
 
