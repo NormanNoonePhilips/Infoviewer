@@ -35,12 +35,12 @@ process.on('unhandledRejection', err => {
 
 // Serve the EJS or HTML
 app.set('view engine', 'ejs');
-//app.set('views', path.join(__dirname, 'views'));
+app.set('views', path.join(__dirname, 'views'));
 app.use(express.static(path.join(__dirname, 'views')));
 
 app.get('/', (req, res) => {
     try {
-        return res.render('chart'); // will load chart.ejs from public/views/chart.ejs
+        return res.render('chart'); // will load chart.ejs from views/chart.ejs
     } catch (err) {
         console.error('Error rendering chart.ejs:', err && err.stack ? err.stack : err);
         return res.status(500).send('Template render error. Check server logs.');

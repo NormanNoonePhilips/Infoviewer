@@ -7,8 +7,6 @@
 
   <title>Azure WebApp — Charts from JSON</title>
 
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-
   <style>
     body {
       font-family: Inter, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial;
@@ -67,6 +65,7 @@
     <h1>Mockup charts from JSON (Azure WebApp)</h1>
 
     <div class="chart-wrap">
+
       <div class="card">
         <canvas id="lineChart"></canvas>
         <div class="meta">Line chart (time series).</div>
@@ -78,6 +77,8 @@
       </div>
 
       <div id="log" class="meta"></div>
+
+      <pre id="rawJson" class="card" style="white-space: pre-wrap; max-height: 300px; overflow:auto;"></pre>
     </div>
   </div>
 
@@ -205,21 +206,38 @@
 
     // Fetch JSON and refresh charts (with basic error handling)
     async function fetchAndRender() {
-      try {
-        log('Fetching JSON from ' + DATA_URL + ' ...');
-        const resp = await fetch(DATA_URL, { cache: 'no-store' });
-        if (!resp.ok) throw new Error('HTTP ' + resp.status);
-        const json = await resp.json();
-        const normalized = normalizeJson(json);
-        updateCharts(normalized);
-        log('Charts updated from ' + DATA_URL + ' — ' + new Date().toLocaleTimeString());
-      } catch (err) {
-        console.error('Failed to fetch/parse JSON:', err);
-        log('Failed to load JSON — using fallback data. (' + err.message + ')', true);
-        const normalized = normalizeJson(FALLBACK_JSON);
-        updateCharts(normalized);
-      }
+  const rawEl = document.getElementById('rawJson');
+  try {
+    log('Fetching JSON from ' + DATA_URL + ' ...');
+    rawEl.textContent = ''; // clear previous
+    const resp = await fetch(DATA_URL, { cache: 'no-store' });
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+
+    // try parse as JSON but keep raw text available
+    const text = await resp.text();
+
+    // If it's valid JSON, show pretty-printed JSON and use it for charts
+    try {
+      const json = JSON.parse(text);
+      rawEl.textContent = JSON.stringify(json, null, 2);
+      const normalized = normalizeJson(json);
+      updateCharts(normalized);
+      log('Charts updated from ' + DATA_URL + ' — ' + new Date().toLocaleTimeString());
+    } catch (parseErr) {
+      // not JSON: show raw text and load fallback charts
+      rawEl.textContent = text;
+      log('Response is not valid JSON — using fallback data. (' + parseErr.message + ')', true);
+      const normalized = normalizeJson(FALLBACK_JSON);
+      updateCharts(normalized);
     }
+  } catch (err) {
+    console.error('Failed to fetch/parse JSON:', err);
+    log('Failed to load JSON — using fallback data. (' + (err && err.message) + ')', true);
+    rawEl.textContent = 'Error fetching data: ' + (err && err.message);
+    const normalized = normalizeJson(FALLBACK_JSON);
+    updateCharts(normalized);
+  }
+}
 
     // Initial load
     fetchAndRender();
