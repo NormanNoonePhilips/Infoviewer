@@ -68,28 +68,9 @@ SHOW_STATUS_BAR = false    # Hide status bar
 
 ---
 
-## How to Apply Changes
+## Applying Changes
 
-### Method 1: Change in Azure Portal (Recommended)
-
-1. Go to Azure Portal -> Your Web App -> Configuration
-2. Update the application setting values
-3. Click Save at the top
-
-After clicking Save Azure will restart the app automatically - this typically takes about 30 seconds. Refresh your browser to see changes.
-
-### Method 2: Manual Refresh (For Testing)
-
-If you want to test changes without restarting the server:
-
-1. Change settings in Azure Portal
-2. Save (do not restart yet)
-3. In browser console, run:
-
-```javascript
-await window._reloadConfig();
-window._applyConfig();
-```
+Changing settings in Config.js requires a **re-deployment** of the webapp. Normally, it should take between 10 seconds and 1 minute.
 
 ---
 
