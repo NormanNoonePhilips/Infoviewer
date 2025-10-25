@@ -186,23 +186,6 @@ If no environment variables are set, the dashboard uses these defaults:
 
 ---
 
-## Example: Setting Up in Azure Portal - Step by Step
-
-1. Navigate to Azure Portal -> App Services -> [Your App] -> Configuration -> Application settings
-2. Click "+ New application setting"
-3. **Name:** `DASHBOARD_HOURS_BACK`  **Value:** `24`  Click OK
-4. Add other settings as needed, for example:
-
-   * `CHART_ACCELERATION = false`
-   * `DASHBOARD_CUSTOM_TITLE = My Sensors`
-   * `SHOW_DEBUG_LOGGER = false`
-5. Click Save at the top of the page and confirm
-6. Wait ~30 seconds for the app to restart
-7. Verify by opening `https://your-app.azurewebsites.net/api/config`
-8. Refresh your dashboard to see changes
-
----
-
 ## Security Note
 
 * Configuration settings are server-side only. The `/api/config` endpoint does not expose:
