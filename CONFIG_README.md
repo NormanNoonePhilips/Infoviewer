@@ -44,7 +44,7 @@ CHART_ACCELERATION = false
 | **Setting**           | **Type** | **Default** | **Description**           |
 | --------------------- | -------: | ----------: | ------------------------- |
 | `SHOW_DEBUG_LOGGER`   |  boolean |        true | Show/hide raw JSON logger |
-| `MAX_LOGGER_MESSAGES` |   number |           5 | Max messages to display   |
+| `MAX_LOGGER_MESSAGES` |   number |           5 | Max messages to display. Setting "0" will show *all* messages (not recommended).  |
 
 **Examples:**
 
@@ -68,28 +68,9 @@ SHOW_STATUS_BAR = false    # Hide status bar
 
 ---
 
-## How to Apply Changes
+## Applying Changes
 
-### Method 1: Change in Azure Portal (Recommended)
-
-1. Go to Azure Portal -> Your Web App -> Configuration
-2. Update the application setting values
-3. Click Save at the top
-
-After clicking Save Azure will restart the app automatically - this typically takes about 30 seconds. Refresh your browser to see changes.
-
-### Method 2: Manual Refresh (For Testing)
-
-If you want to test changes without restarting the server:
-
-1. Change settings in Azure Portal
-2. Save (do not restart yet)
-3. In browser console, run:
-
-```javascript
-await window._reloadConfig();
-window._applyConfig();
-```
+Changing settings in Config.js requires a **re-deployment** of the webapp. Normally, it should take between 10 seconds and 1 minute.
 
 ---
 
@@ -205,23 +186,6 @@ If no environment variables are set, the dashboard uses these defaults:
 
 ---
 
-## Example: Setting Up in Azure Portal - Step by Step
-
-1. Navigate to Azure Portal -> App Services -> [Your App] -> Configuration -> Application settings
-2. Click "+ New application setting"
-3. **Name:** `DASHBOARD_HOURS_BACK`  **Value:** `24`  Click OK
-4. Add other settings as needed, for example:
-
-   * `CHART_ACCELERATION = false`
-   * `DASHBOARD_CUSTOM_TITLE = My Sensors`
-   * `SHOW_DEBUG_LOGGER = false`
-5. Click Save at the top of the page and confirm
-6. Wait ~30 seconds for the app to restart
-7. Verify by opening `https://your-app.azurewebsites.net/api/config`
-8. Refresh your dashboard to see changes
-
----
-
 ## Security Note
 
 * Configuration settings are server-side only. The `/api/config` endpoint does not expose:
@@ -249,14 +213,14 @@ Check your Azure App Service logs to see when configuration is requested and whi
 
 ## FAQ
 
-**Q: Do I need to restart the app after changing settings?**
-A: Yes. Azure automatically restarts when you click Save in Configuration. This takes about 30 seconds.
+**Q: Do I need to redeploy the app after changing settings?**
+A: Yes, this takes between 10 seconds and 1 minute.
 
 **Q: Can I change settings while the app is running?**
 A: Yes, but changes require an app restart to take effect.
 
 **Q: What happens if I delete a setting?**
-A: The dashboard will use the default value for that setting.
+A: The app will use the default value for that setting.
 
 **Q: Can I use different settings for development vs production?**
 A: Yes. Each Azure App Service (dev/staging/production) has its own Configuration settings.
@@ -266,9 +230,6 @@ A: Create a `.env` file in your project root with the same variable names, or se
 
 **Q: Can I change the chart colors or styles via configuration?**
 A: No. Changing colors or styles requires modifying `chart-logic.js` and redeploying.
-
-**Q: Does this work with CI/CD pipelines?**
-A: Yes. Environment variables persist across deployments. Only code changes require redeployment.
 
 ---
 
