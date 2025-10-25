@@ -44,7 +44,7 @@ CHART_ACCELERATION = false
 | **Setting**           | **Type** | **Default** | **Description**           |
 | --------------------- | -------: | ----------: | ------------------------- |
 | `SHOW_DEBUG_LOGGER`   |  boolean |        true | Show/hide raw JSON logger |
-| `MAX_LOGGER_MESSAGES` |   number |           5 | Max messages to display   |
+| `MAX_LOGGER_MESSAGES` |   number |           5 | Max messages to display. Setting "0" will show *all* messages (not recommended).  |
 
 **Examples:**
 
