@@ -1,5 +1,7 @@
 # Infoviewer - IoT Sensor Dashboard with TTN Integration
 
+[![]()](infoviewer-d5fmgzabe3hcgffh.westeurope-01.azurewebsites.net)
+
 A real-time web dashboard for visualizing IoT sensor data from The Things Network (TTN). This Node.js/Express application fetches uplink messages from TTN's Storage Integration API and displays environmental and motion sensor readings in interactive charts.
 
 ---
