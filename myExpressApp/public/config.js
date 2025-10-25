@@ -6,40 +6,46 @@ export const CONFIG = {
 
     // How many hours of data to fetch from TTN
     // This affects both the title display and the API query
+    // Default: 72
     hoursBack: 72,
 
     // Auto-refresh interval in milliseconds (30000 = 30 seconds)
     // Set to null to disable auto-refresh
+    // Default: 30000
     pollIntervalMs: 30000,
 
 
     // === CHART VISIBILITY ===
 
     charts: {
-        temperature: true,    // Show temperature chart (3 sensors)
-        pressure: true,       // Show atmospheric pressure chart
-        humidity: true,       // Show humidity chart
-        distance: true,       // Show distance (ToF) chart
-        acceleration: true    // Show 3-axis acceleration chart
+        temperature: true,    // Show temperature chart (3 sensors) - Default: true
+        pressure: true,       // Show atmospheric pressure chart - Default: true
+        humidity: true,       // Show humidity chart - Default: true
+        distance: true,       // Show distance (ToF) chart - Default: true
+        acceleration: true    // Show 3-axis acceleration chart - Default: true
     },
 
 
     // === DEBUG/LOGGER SETTINGS ===
 
     // Show the raw JSON logger section
+    // Default: true
     showDebugLogger: true,
 
     // Maximum number of JSON messages to display in the logger
     // Set to 0 for unlimited (not recommended for large datasets)
+    // Default: 5
     maxLoggerMessages: 5,
 
 
     // === UI CUSTOMIZATION ===
 
     // Dashboard title (leave null to auto-generate from hoursBack)
+    // Default: null
     customTitle: null,  // e.g., "My Sensor Dashboard"
 
     // Show status bar (connection status, data points, last update)
+    // Default: true
     showStatusBar: true
 };
 

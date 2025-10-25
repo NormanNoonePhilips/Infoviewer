@@ -20,7 +20,15 @@ export function createCharts() {
             tooltip: { mode: 'index', intersect: false }
         },
         scales: {
-            x: { display: true, grid: { display: false } },
+            x: {
+                display: true,
+                grid: { display: false },
+                ticks: {
+                    maxTicksLimit: 10,
+                    autoSkip: true,
+                    autoSkipPadding: 10
+                }
+            },
             y: { display: true, beginAtZero: false }
         }
     };
@@ -33,7 +41,7 @@ export function createCharts() {
             options: {
                 ...commonOptions,
                 scales: {
-                    ...commonOptions.scales,
+                    x: commonOptions.scales.x,
                     y: {
                         ...commonOptions.scales.y,
                         title: { display: true, text: 'Temperature (°C)' }
@@ -51,7 +59,7 @@ export function createCharts() {
             options: {
                 ...commonOptions,
                 scales: {
-                    ...commonOptions.scales,
+                    x: commonOptions.scales.x,
                     y: {
                         ...commonOptions.scales.y,
                         title: { display: true, text: 'Pressure (hPa)' }
@@ -69,7 +77,7 @@ export function createCharts() {
             options: {
                 ...commonOptions,
                 scales: {
-                    ...commonOptions.scales,
+                    x: commonOptions.scales.x,
                     y: {
                         ...commonOptions.scales.y,
                         title: { display: true, text: 'Humidity (%RH)' },
@@ -89,7 +97,7 @@ export function createCharts() {
             options: {
                 ...commonOptions,
                 scales: {
-                    ...commonOptions.scales,
+                    x: commonOptions.scales.x,
                     y: {
                         ...commonOptions.scales.y,
                         title: { display: true, text: 'Distance (mm)' },
@@ -108,7 +116,7 @@ export function createCharts() {
             options: {
                 ...commonOptions,
                 scales: {
-                    ...commonOptions.scales,
+                    x: commonOptions.scales.x,
                     y: {
                         ...commonOptions.scales.y,
                         title: { display: true, text: 'Acceleration (g)' }
@@ -161,6 +169,119 @@ export function parseSensorData(ttnMessages) {
     return dataPoints;
 }
 
+export function createEmptyCharts() {
+    // Generate a single timestamp label with current time
+    const now = new Date();
+    const label = now.toLocaleString('it-IT', {
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+    });
+
+    const labels = [label];
+
+    // Update Temperature Chart with empty data
+    if (CONFIG.charts.temperature && charts.temperature) {
+        charts.temperature.data.labels = labels;
+        charts.temperature.data.datasets = [
+            {
+                label: 'External (DS18B20)',
+                data: [],
+                borderColor: 'rgb(239, 68, 68)',
+                backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                tension: 0.3,
+                fill: true
+            },
+            {
+                label: 'Internal (DS18B20)',
+                data: [],
+                borderColor: 'rgb(59, 130, 246)',
+                backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                tension: 0.3,
+                fill: true
+            },
+            {
+                label: 'BME280',
+                data: [],
+                borderColor: 'rgb(16, 185, 129)',
+                backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                tension: 0.3,
+                fill: true
+            }
+        ];
+        charts.temperature.update();
+    }
+
+    // Update Pressure Chart with empty data
+    if (CONFIG.charts.pressure && charts.pressure) {
+        charts.pressure.data.labels = labels;
+        charts.pressure.data.datasets = [{
+            label: 'Pressure',
+            data: [],
+            borderColor: 'rgb(168, 85, 247)',
+            backgroundColor: 'rgba(168, 85, 247, 0.1)',
+            tension: 0.3,
+            fill: true
+        }];
+        charts.pressure.update();
+    }
+
+    // Update Humidity Chart with empty data
+    if (CONFIG.charts.humidity && charts.humidity) {
+        charts.humidity.data.labels = labels;
+        charts.humidity.data.datasets = [{
+            label: 'Humidity',
+            data: [],
+            borderColor: 'rgb(14, 165, 233)',
+            backgroundColor: 'rgba(14, 165, 233, 0.1)',
+            tension: 0.3,
+            fill: true
+        }];
+        charts.humidity.update();
+    }
+
+    // Update Distance Chart with empty data
+    if (CONFIG.charts.distance && charts.distance) {
+        charts.distance.data.labels = labels;
+        charts.distance.data.datasets = [{
+            label: 'Distance',
+            data: [],
+            borderColor: 'rgb(245, 158, 11)',
+            backgroundColor: 'rgba(245, 158, 11, 0.1)',
+            tension: 0.3,
+            fill: true
+        }];
+        charts.distance.update();
+    }
+
+    // Update Acceleration Chart with empty data
+    if (CONFIG.charts.acceleration && charts.acceleration) {
+        charts.acceleration.data.labels = labels;
+        charts.acceleration.data.datasets = [
+            {
+                label: 'Ax (X-axis)',
+                data: [],
+                borderColor: 'rgb(239, 68, 68)',
+                tension: 0.3
+            },
+            {
+                label: 'Ay (Y-axis)',
+                data: [],
+                borderColor: 'rgb(16, 185, 129)',
+                tension: 0.3
+            },
+            {
+                label: 'Az (Z-axis)',
+                data: [],
+                borderColor: 'rgb(59, 130, 246)',
+                tension: 0.3
+            }
+        ];
+        charts.acceleration.update();
+    }
+}
+
 export function updateCharts(dataPoints) {
     if (!dataPoints || dataPoints.length === 0) {
         console.warn('No data points to display');
@@ -168,7 +289,7 @@ export function updateCharts(dataPoints) {
     }
 
     // Generate labels (human-readable timestamps)
-    const labels = dataPoints.map(dp => 
+    const labels = dataPoints.map(dp =>
         dp.timestamp.toLocaleString('it-IT', {
             month: 'short',
             day: 'numeric',

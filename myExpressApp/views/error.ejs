@@ -1,3 +1,190 @@
-<h1><%= message %></h1>
-<h2><%= error.status %></h2>
-<pre><%= error.stack %></pre>
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Error - Sensor Dashboard</title>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: Inter, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial;
+            margin: 0;
+            padding: 0;
+            background: #f5f7fa;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+        }
+
+        .error-container {
+            max-width: 600px;
+            margin: 20px;
+            background: white;
+            padding: 40px;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+        }
+
+        .error-icon {
+            font-size: 3rem;
+            margin-bottom: 16px;
+        }
+
+        h1 {
+            font-size: 1.5rem;
+            margin: 0 0 16px 0;
+            color: #1a202c;
+        }
+
+        .error-status {
+            display: inline-block;
+            background: #fed7d7;
+            color: #c53030;
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-weight: 600;
+            margin-bottom: 24px;
+        }
+
+        .error-message {
+            color: #4a5568;
+            margin-bottom: 24px;
+            line-height: 1.6;
+        }
+
+        .stack-toggle {
+            background: #e2e8f0;
+            border: none;
+            padding: 10px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            color: #2d3748;
+            margin-bottom: 12px;
+        }
+
+        .stack-toggle:hover {
+            background: #cbd5e0;
+        }
+
+        .stack-trace {
+            display: none;
+            background: #2d3748;
+            color: #e2e8f0;
+            padding: 16px;
+            border-radius: 8px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.85rem;
+            overflow: auto;
+            white-space: pre-wrap;
+            word-break: break-all;
+            max-height: 400px;
+        }
+
+        .stack-trace.show {
+            display: block;
+        }
+
+        .actions {
+            margin-top: 24px;
+            display: flex;
+            gap: 12px;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border-radius: 6px;
+            text-decoration: none;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+
+        .btn-primary {
+            background: #3b82f6;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #2563eb;
+        }
+
+        .btn-secondary {
+            background: #e2e8f0;
+            color: #2d3748;
+        }
+
+        .btn-secondary:hover {
+            background: #cbd5e0;
+        }
+
+        .dev-only {
+            margin-top: 16px;
+            padding: 12px;
+            background: #fef3c7;
+            border-left: 4px solid #f59e0b;
+            border-radius: 4px;
+            font-size: 0.85rem;
+            color: #92400e;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="error-container">
+        <div class="error-icon">⚠️</div>
+
+        <h1>
+            <%= message || 'An error occurred' %>
+        </h1>
+
+        <% if (error && error.status) { %>
+            <div class="error-status">Error <%= error.status %>
+            </div>
+            <% } %>
+
+                <div class="error-message">
+                    <% if (error && error.status===404) { %>
+                        The page you're looking for doesn't exist.
+                        <% } else if (error && error.status===500) { %>
+                            An internal server error occurred. Please try again later.
+                            <% } else { %>
+                                Something went wrong. Please try again or contact support if the problem persists.
+                                <% } %>
+                </div>
+
+                <div class="actions">
+                    <a href="/" class="btn btn-primary">Go to Dashboard</a>
+                    <a href="javascript:history.back()" class="btn btn-secondary">Go Back</a>
+                </div>
+
+                <% if (process.env.NODE_ENV !=='production' && error && error.stack) { %>
+                    <div class="dev-only">
+                        <strong>Development Mode:</strong> Stack trace visible below (hidden in production)
+                    </div>
+
+                    <button class="stack-toggle" onclick="toggleStack()">
+                        Toggle Stack Trace
+                    </button>
+
+                    <div id="stackTrace" class="stack-trace">
+                        <%= error.stack %>
+                    </div>
+                    <% } %>
+    </div>
+
+    <script>
+        function toggleStack() {
+            const stack = document.getElementById('stackTrace');
+            if (stack) {
+                stack.classList.toggle('show');
+            }
+        }
+    </script>
+</body>
+
+</html>

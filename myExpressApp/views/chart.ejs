@@ -69,8 +69,8 @@
     }
 
     .chart-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(450px, 1fr));
+      display: flex;
+      flex-direction: column;
       gap: 20px;
       margin-bottom: 24px;
     }
@@ -80,6 +80,7 @@
       padding: 20px;
       border-radius: 12px;
       box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+      width: 100%;
     }
 
     .chart-card.hidden {
@@ -102,14 +103,6 @@
     .chart-wrapper {
       position: relative;
       height: 280px;
-    }
-
-    .full-width {
-      grid-column: 1 / -1;
-    }
-
-    .full-width .chart-wrapper {
-      height: 320px;
     }
 
     .debug-section {
@@ -146,7 +139,7 @@
       max-height: 400px;
       overflow: auto;
       white-space: pre-wrap;
-      word-break: break-all;
+      word-break: break-word;
     }
 
     .debug-content.show {
@@ -169,8 +162,8 @@
     }
 
     @media (max-width: 768px) {
-      .chart-grid {
-        grid-template-columns: 1fr;
+      .chart-wrapper {
+        height: 250px;
       }
     }
   </style>
@@ -232,8 +225,8 @@
         </div>
       </div>
 
-      <!-- Acceleration Chart (Full Width) -->
-      <div class="chart-card full-width" id="card-acceleration">
+      <!-- Acceleration Chart -->
+      <div class="chart-card" id="card-acceleration">
         <h3>Acceleration (3-Axis)</h3>
         <div class="chart-wrapper">
           <canvas id="accelerationChart"></canvas>

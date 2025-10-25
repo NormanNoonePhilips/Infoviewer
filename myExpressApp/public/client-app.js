@@ -2,10 +2,11 @@
 // Main entry point: fetches data, updates charts and UI
 
 import { CONFIG, getDashboardTitle, getTimeRangeLabel } from './config.js';
-import { 
-    createCharts, 
-    parseSensorData, 
-    updateCharts, 
+import {
+    createCharts,
+    parseSensorData,
+    updateCharts,
+    createEmptyCharts,
     updateStatusBar,
     showError,
     clearError
@@ -14,13 +15,13 @@ import {
 const DATA_URL = '/api/data';
 
 let latestData = null;
-let debugMessageCount = 0;
+let debugMessages = [];
 
 function applyUIConfiguration() {
-    // Set dashboard title
+    // Set dashboard title (without emoji)
     const titleEl = document.getElementById('dashboardTitle');
     if (titleEl) {
-        titleEl.textContent = '🌡️ ' + getDashboardTitle();
+        titleEl.textContent = getDashboardTitle();
     }
 
     const subtitleEl = document.getElementById('dashboardSubtitle');
@@ -60,35 +61,36 @@ function logDebug(message, data = null) {
     if (!CONFIG.showDebugLogger) return;
 
     console.log(message, data || '');
-    
+
     const debugEl = document.getElementById('debugContent');
     if (!debugEl) return;
 
     const timestamp = new Date().toLocaleTimeString('it-IT');
-    const logLine = `[${timestamp}] ${message}\n`;
-    
-    // Check if we need to limit messages
-    if (CONFIG.maxLoggerMessages > 0) {
-        debugMessageCount++;
-        
-        // Clear old messages if we exceed the limit
-        if (debugMessageCount > CONFIG.maxLoggerMessages) {
-            const lines = debugEl.textContent.split('\n');
-            // Keep only the most recent messages
-            const linesToKeep = CONFIG.maxLoggerMessages * 3; // Rough estimate (message + data + blank line)
-            if (lines.length > linesToKeep) {
-                debugEl.textContent = lines.slice(-linesToKeep).join('\n');
-            }
+    const logEntry = {
+        timestamp,
+        message,
+        data
+    };
+
+    // Add to message array
+    debugMessages.push(logEntry);
+
+    // Trim array if we have a limit set
+    if (CONFIG.maxLoggerMessages > 0 && debugMessages.length > CONFIG.maxLoggerMessages) {
+        debugMessages = debugMessages.slice(-CONFIG.maxLoggerMessages);
+    }
+
+    // Rebuild the entire debug content
+    let fullContent = '';
+    for (const entry of debugMessages) {
+        fullContent += `[${entry.timestamp}] ${entry.message}\n`;
+        if (entry.data) {
+            fullContent += JSON.stringify(entry.data, null, 2) + '\n\n';
         }
     }
-    
-    debugEl.textContent += logLine;
-    
-    if (data) {
-        const dataStr = JSON.stringify(data, null, 2);
-        debugEl.textContent += dataStr + '\n\n';
-    }
-    
+
+    debugEl.textContent = fullContent;
+
     // Auto-scroll to bottom
     debugEl.scrollTop = debugEl.scrollHeight;
 }
@@ -96,7 +98,7 @@ function logDebug(message, data = null) {
 async function fetchAndRender() {
     try {
         clearError();
-        
+
         // Build query parameters using config
         const params = new URLSearchParams({
             'last': `${CONFIG.hoursBack}h`,
@@ -106,7 +108,7 @@ async function fetchAndRender() {
         const url = `${DATA_URL}?${params.toString()}`;
         logDebug(`Fetching data from TTN (last ${CONFIG.hoursBack}h)...`);
 
-        const resp = await fetch(url, { 
+        const resp = await fetch(url, {
             cache: 'no-store',
             headers: {
                 'Accept': 'application/json'
@@ -120,7 +122,7 @@ async function fetchAndRender() {
 
         const rawData = await resp.json();
         latestData = rawData;
-        
+
         logDebug(`Received ${rawData.length} messages from TTN`);
 
         // Show limited sample in debug logger if configured
@@ -136,23 +138,30 @@ async function fetchAndRender() {
         const dataPoints = parseSensorData(rawData);
 
         if (!dataPoints || dataPoints.length === 0) {
-            logDebug('No valid sensor data found in messages');
+            logDebug('No valid sensor data found in messages - displaying empty charts');
+
+            // Create empty charts with current timestamp
+            createEmptyCharts();
             updateStatusBar([], 'No Data');
-            showError('No sensor data available. Check if devices are sending data.');
+
+            showError('No sensor data available in the selected time range. Charts are empty.');
             return;
         }
 
         logDebug(`Parsed ${dataPoints.length} data points`);
 
-        // Update charts
+        // Update charts with real data
         updateCharts(dataPoints);
         updateStatusBar(dataPoints, 'Connected');
 
     } catch (err) {
         console.error('Failed to fetch/parse data:', err);
         logDebug('ERROR: ' + err.message);
-        
+
+        // Create empty charts on error too
+        createEmptyCharts();
         updateStatusBar([], 'Error');
+
         showError(`Failed to load data: ${err.message}`);
     }
 }
@@ -160,31 +169,31 @@ async function fetchAndRender() {
 function start() {
     // Apply UI configuration first
     applyUIConfiguration();
-    
+
     logDebug('Initializing sensor dashboard...');
     logDebug('Configuration:', CONFIG);
-    
+
     // Create all charts (only enabled ones will be created)
     createCharts();
     logDebug('Charts initialized');
-    
+
     // Fetch initial data
     logDebug(`Fetching initial data (last ${CONFIG.hoursBack}h)...`);
     fetchAndRender();
-    
+
     // Set up polling if enabled
     if (CONFIG.pollIntervalMs) {
-        logDebug(`Auto-refresh enabled: every ${CONFIG.pollIntervalMs/1000} seconds`);
+        logDebug(`Auto-refresh enabled: every ${CONFIG.pollIntervalMs / 1000} seconds`);
         setInterval(fetchAndRender, CONFIG.pollIntervalMs);
     } else {
         logDebug('Auto-refresh disabled');
     }
-    
+
     // Expose for manual refresh
     window._fetchAndRender = fetchAndRender;
     window._getLatestData = () => latestData;
     window._getConfig = () => CONFIG;
-    
+
     logDebug('Dashboard ready! Manual refresh: window._fetchAndRender()');
 }
 

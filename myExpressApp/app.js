@@ -15,14 +15,14 @@ console.log('========================================');
 
 const express = require('express');
 const path = require('path');
-const axios = require('axios'); // Using axios instead of node-fetch
+const axios = require('axios');
 const { DefaultAzureCredential } = require('@azure/identity');
 const { SecretClient } = require('@azure/keyvault-secrets');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Key Vault / TTN config (adjust env var names as needed)
+// Key Vault / TTN config
 const keyVaultName = process.env.KEY_VAULT_NAME;
 const secretName = process.env.TTN_SECRET_NAME || 'editions-app-key-first';
 const ttnCluster = process.env.TTN_CLUSTER || 'eu1';
@@ -92,7 +92,6 @@ app.get('/api/data', async (req, res) => {
         const last = req.query.last || '1h';
         const fieldMask = req.query.field_mask || 'up.uplink_message';
 
-        // CORRECTED: Use the proper TTN Storage Integration endpoint
         const url = `https://${ttnCluster}.cloud.thethings.network/api/v3/as/applications/${ttnAppId}/packages/storage/uplink_message`;
 
         console.log('Fetching from TTN Storage Integration:', url);
@@ -105,10 +104,10 @@ app.get('/api/data', async (req, res) => {
                 field_mask: fieldMask
             },
             headers: {
-                'Accept': 'text/event-stream',  // TTN returns newline-delimited JSON
+                'Accept': 'text/event-stream',
                 'Authorization': `Bearer ${secret}`
             },
-            responseType: 'text',  // Get raw text to parse event stream
+            responseType: 'text',
             validateStatus: null,
             timeout: 30000
         });
@@ -157,23 +156,21 @@ app.get('/api/data', async (req, res) => {
     }
 });
 
-// Add dedicated endpoint for client-app.js
+// Dedicated endpoint for uplinks
 app.get('/api/uplinks', async (req, res) => {
     try {
         const secret = await getAppSecret();
 
-        // Build query parameters
         const last = req.query.last || '1h';
         const fieldMask = req.query.field_mask || 'up.uplink_message';
 
-        // Correct TTN Storage Integration endpoint
         const url = `https://${ttnCluster}.cloud.thethings.network/api/v3/as/applications/${ttnAppId}/packages/storage/uplink_message?last=${last}&field_mask=${fieldMask}`;
 
         console.log('Fetching uplinks from:', url);
 
         const resp = await axios.get(url, {
             headers: {
-                'Accept': 'text/event-stream', // TTN returns event stream
+                'Accept': 'text/event-stream',
                 'Authorization': `Bearer ${secret}`
             },
             validateStatus: null,
@@ -205,13 +202,11 @@ app.get('/api/uplinks', async (req, res) => {
     }
 });
 
-
 // Debug endpoint - tests TTN V3 Storage Integration with detailed response
 app.get('/api/debug', async (req, res) => {
     try {
         const secret = await getAppSecret();
 
-        // Use same endpoint as /api/data for consistency
         const last = req.query.last || '1h';
         const fieldMask = req.query.field_mask || 'up.uplink_message';
         const url = `https://${ttnCluster}.cloud.thethings.network/api/v3/as/applications/${ttnAppId}/packages/storage/uplink_message`;
@@ -258,7 +253,7 @@ app.get('/api/debug', async (req, res) => {
             rawDataLength: resp.data?.length || 0,
             rawDataPreview: resp.data?.substring(0, 500) || '',
             parsedMessageCount: parsedMessages.length,
-            parsedMessages: parsedMessages.slice(0, 5), // Show first 5 messages
+            parsedMessages: parsedMessages.slice(0, 5),
             params: {
                 last: last,
                 field_mask: fieldMask
@@ -275,7 +270,7 @@ app.get('/api/debug', async (req, res) => {
     }
 });
 
-//Quick test Endpoint
+// Quick test endpoint
 app.get('/api/test-ttn', async (req, res) => {
     try {
         const secret = await getAppSecret();
@@ -312,16 +307,6 @@ app.get('/api/test-ttn', async (req, res) => {
             details: err.response?.data || null
         });
     }
-});
-
-// Local test JSON for development
-app.get('/api/testjson', (req, res) => {
-    const sample = [
-        { "label": "2025-10-18T12:00:00Z", "value": 100 },
-        { "label": "2025-10-18T13:00:00Z", "value": 110 },
-        { "label": "2025-10-18T14:00:00Z", "value": 90 }
-    ];
-    res.json(sample);
 });
 
 app.listen(PORT, () => console.log(`Server listening on ${PORT}`));
