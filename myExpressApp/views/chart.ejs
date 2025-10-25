@@ -4,9 +4,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-
   <title>Azure WebApp — Charts from JSON</title>
-
   <style>
     body {
       font-family: Inter, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial;
@@ -56,201 +54,29 @@
       color: #b00020;
     }
   </style>
-
 </head>
 
 <body>
 
   <div class="container">
-    <h1>Mockup charts from JSON (Azure WebApp)</h1>
+    <h1>Mockup charts (last 72h)</h1>
 
     <div class="chart-wrap">
 
-      <div class="card">
-        <canvas id="lineChart"></canvas>
-        <div class="meta">Line chart (time series).</div>
-      </div>
-
-      <div class="card">
-        <canvas id="barChart"></canvas>
-        <div class="meta">Bar chart (aggregated values).</div>
-      </div>
+      <pre id="rawJson" class="card" style="white-space: pre-wrap; max-height: 300px; overflow:auto;"></pre>
+      <div class="meta">Temporary JSONs logger.</div>
 
       <div id="log" class="meta"></div>
-
-      <pre id="rawJson" class="card" style="white-space: pre-wrap; max-height: 300px; overflow:auto;"></pre>
     </div>
   </div>
 
-  <script>
-    /*************************************************************************
-     * Configuration
-     * - DATA_URL: where your JSON lives. If the JSON is served from the same
-     *   webapp, a relative URL like '/data/values.json' works.
-     * - POLL_INTERVAL_MS: optional auto-refresh interval (set to null to disable)
-     *************************************************************************/
-    const DATA_URL = '/api/data';
-    const POLL_INTERVAL_MS = 30_000;     // fetch every 30s (set to null to disable)
+  <!-- Chart.js (views) -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
-    // Convenience logger
-    const logEl = document.getElementById('log');
-    function log(msg, isError = false) {
-      logEl.textContent = msg;
-      logEl.className = isError ? 'meta error' : 'meta';
-    }
+  <!-- Client bootstrap (module) — served from /public -->
+  <script type="module" src="/client-app.js"></script>
+  <!-- chart-logic.js will be imported by client-app.js via relative import './chart-logic.js' -->
 
-    // Sample fallback JSON (used if fetch fails) — adapt to your real schema.
-    // Two supported shapes in this example:
-    // 1) Simple array: [ { "label": "2025-10-18T12:00:00Z", "value": 123 }, ... ]
-    // 2) Series object for multi-series: { "series": [ { "name":"A","points":[{"ts":"...","v":...},...]}, ... ] }
-    const FALLBACK_JSON = [
-      { "label": "2000-01-01T09:00:00Z", "value": 1 },
-      { "label": "2000-01-01T10:00:00Z", "value": 1 },
-      { "label": "2000-01-01T11:00:00Z", "value": 1 },
-      { "label": "2000-01-01T12:00:00Z", "value": 1 }
-    ];
-
-    // Helpers to normalize different JSON shapes to a common structure
-    function normalizeJson(json) {
-      // If it's an array of {label, value}
-      if (Array.isArray(json) && json.length > 0 && 'label' in json[0]) {
-        return {
-          labels: json.map(r => r.label),
-          series: [{ name: 'Series 1', values: json.map(r => Number(r.value)) }]
-        };
-      }
-
-      // If it's already { series: [ { name, points: [{ts, v}] } ] }
-      if (json && Array.isArray(json.series)) {
-        const labels = Array.from(new Set(json.series.flatMap(s => s.points.map(p => p.ts)))).sort();
-        const series = json.series.map(s => ({
-          name: s.name,
-          values: labels.map(ts => {
-            const p = (s.points || []).find(x => x.ts === ts);
-            return p ? Number(p.v) : null; // allow nulls where missing
-          })
-        }));
-        return { labels, series };
-      }
-
-      // If nothing matches, try to guess: maybe object with timestamp:value map
-      if (json && typeof json === 'object' && !Array.isArray(json)) {
-        const entries = Object.entries(json).map(([k, v]) => ({ label: k, value: v }));
-        return normalizeJson(entries);
-      }
-
-      // fallback
-      return normalizeJson(FALLBACK_JSON);
-    }
-
-    // Utility: format ISO timestamps for labels (keeps them short)
-    function humanLabel(ts) {
-      try {
-        const d = new Date(ts);
-        return isNaN(d) ? String(ts) : d.toLocaleString();
-      } catch (e) {
-        return String(ts);
-      }
-    }
-
-    // Create Chart.js instances with nice defaults
-    const ctxLine = document.getElementById('lineChart').getContext('2d');
-    const ctxBar = document.getElementById('barChart').getContext('2d');
-
-    const lineChart = new Chart(ctxLine, {
-      type: 'line',
-      data: { labels: [], datasets: [] },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        interaction: { mode: 'index', intersect: false },
-        stacked: false,
-        plugins: { title: { display: true, text: 'Time series' } },
-        scales: { x: { display: true }, y: { display: true, beginAtZero: true } }
-      }
-    });
-
-    const barChart = new Chart(ctxBar, {
-      type: 'bar',
-      data: { labels: [], datasets: [] },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: { title: { display: true, text: 'Aggregated values' } },
-        scales: { x: { display: true }, y: { display: true, beginAtZero: true } }
-      }
-    });
-
-    // Update charts with normalized data
-    function updateCharts(normalized) {
-      const labels = normalized.labels.map(l => humanLabel(l));
-
-      // Update line chart: one dataset per series
-      lineChart.data.labels = labels;
-      lineChart.data.datasets = normalized.series.map((s, i) => ({
-        label: s.name,
-        data: s.values,
-        tension: 0.25,
-        spanGaps: true
-      }));
-      lineChart.update();
-
-      // Update bar chart: one bar per series aggregated (sum)
-      const aggLabels = normalized.series.map(s => s.name);
-      const aggValues = normalized.series.map(s => s.values.reduce((acc, v) => acc + (v || 0), 0));
-
-      barChart.data.labels = aggLabels;
-      barChart.data.datasets = [{ label: 'Sum', data: aggValues }];
-      barChart.update();
-    }
-
-    // Fetch JSON and refresh charts (with basic error handling)
-    async function fetchAndRender() {
-  const rawEl = document.getElementById('rawJson');
-  try {
-    log('Fetching JSON from ' + DATA_URL + ' ...');
-    rawEl.textContent = ''; // clear previous
-    const resp = await fetch(DATA_URL, { cache: 'no-store' });
-    if (!resp.ok) throw new Error('HTTP ' + resp.status);
-
-    // try parse as JSON but keep raw text available
-    const text = await resp.text();
-
-    // If it's valid JSON, show pretty-printed JSON and use it for charts
-    try {
-      const json = JSON.parse(text);
-      rawEl.textContent = JSON.stringify(json, null, 2);
-      const normalized = normalizeJson(json);
-      updateCharts(normalized);
-      log('Charts updated from ' + DATA_URL + ' — ' + new Date().toLocaleTimeString());
-    } catch (parseErr) {
-      // not JSON: show raw text and load fallback charts
-      rawEl.textContent = text;
-      log('Response is not valid JSON — using fallback data. (' + parseErr.message + ')', true);
-      const normalized = normalizeJson(FALLBACK_JSON);
-      updateCharts(normalized);
-    }
-  } catch (err) {
-    console.error('Failed to fetch/parse JSON:', err);
-    log('Failed to load JSON — using fallback data. (' + (err && err.message) + ')', true);
-    rawEl.textContent = 'Error fetching data: ' + (err && err.message);
-    const normalized = normalizeJson(FALLBACK_JSON);
-    updateCharts(normalized);
-  }
-}
-
-    // Initial load
-    fetchAndRender();
-
-    // Optional polling
-    if (POLL_INTERVAL_MS) {
-      setInterval(fetchAndRender, POLL_INTERVAL_MS);
-    }
-
-    // Expose for debugging in console
-    window._fetchAndRender = fetchAndRender;
-
-  </script>
 </body>
 
 </html>
