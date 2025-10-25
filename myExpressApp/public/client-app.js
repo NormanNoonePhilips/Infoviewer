@@ -1,31 +1,110 @@
 // client-app.js (client-side module)
-// Boots charts, fetches /api/data, handles polling and logging.
+// Main entry point: fetches data, updates charts and UI
 
-import { createCharts, normalizeJson, updateCharts } from './chart-logic.js';
+import { CONFIG, getDashboardTitle, getTimeRangeLabel } from './config.js';
+import { 
+    createCharts, 
+    parseSensorData, 
+    updateCharts, 
+    updateStatusBar,
+    showError,
+    clearError
+} from './chart-logic.js';
 
 const DATA_URL = '/api/data';
-const POLL_INTERVAL_MS = 30000; // 30 seconds - set to null to disable
 
-function log(msg, isError = false) {
-    console[isError ? 'error' : 'log'](msg);
-    const p = document.getElementById('rawJson');
-    if (p) p.textContent += (isError ? 'ERROR: ' : '') + msg + '\n';
+let latestData = null;
+let debugMessageCount = 0;
+
+function applyUIConfiguration() {
+    // Set dashboard title
+    const titleEl = document.getElementById('dashboardTitle');
+    if (titleEl) {
+        titleEl.textContent = '🌡️ ' + getDashboardTitle();
+    }
+
+    const subtitleEl = document.getElementById('dashboardSubtitle');
+    if (subtitleEl) {
+        subtitleEl.textContent = `Real-time monitoring of environmental and motion sensors (Last ${getTimeRangeLabel()})`;
+    }
+
+    // Hide/show status bar
+    const statusBar = document.getElementById('statusBar');
+    if (statusBar && !CONFIG.showStatusBar) {
+        statusBar.classList.add('hidden');
+    }
+
+    // Hide/show charts based on config
+    const chartCards = {
+        temperature: document.getElementById('card-temperature'),
+        pressure: document.getElementById('card-pressure'),
+        humidity: document.getElementById('card-humidity'),
+        distance: document.getElementById('card-distance'),
+        acceleration: document.getElementById('card-acceleration')
+    };
+
+    Object.entries(chartCards).forEach(([key, element]) => {
+        if (element && !CONFIG.charts[key]) {
+            element.classList.add('hidden');
+        }
+    });
+
+    // Hide/show debug section
+    const debugSection = document.getElementById('debugSection');
+    if (debugSection && !CONFIG.showDebugLogger) {
+        debugSection.classList.add('hidden');
+    }
+}
+
+function logDebug(message, data = null) {
+    if (!CONFIG.showDebugLogger) return;
+
+    console.log(message, data || '');
+    
+    const debugEl = document.getElementById('debugContent');
+    if (!debugEl) return;
+
+    const timestamp = new Date().toLocaleTimeString('it-IT');
+    const logLine = `[${timestamp}] ${message}\n`;
+    
+    // Check if we need to limit messages
+    if (CONFIG.maxLoggerMessages > 0) {
+        debugMessageCount++;
+        
+        // Clear old messages if we exceed the limit
+        if (debugMessageCount > CONFIG.maxLoggerMessages) {
+            const lines = debugEl.textContent.split('\n');
+            // Keep only the most recent messages
+            const linesToKeep = CONFIG.maxLoggerMessages * 3; // Rough estimate (message + data + blank line)
+            if (lines.length > linesToKeep) {
+                debugEl.textContent = lines.slice(-linesToKeep).join('\n');
+            }
+        }
+    }
+    
+    debugEl.textContent += logLine;
+    
+    if (data) {
+        const dataStr = JSON.stringify(data, null, 2);
+        debugEl.textContent += dataStr + '\n\n';
+    }
+    
+    // Auto-scroll to bottom
+    debugEl.scrollTop = debugEl.scrollHeight;
 }
 
 async function fetchAndRender() {
-    const rawEl = document.getElementById('rawJson');
     try {
-        // Build query parameters
+        clearError();
+        
+        // Build query parameters using config
         const params = new URLSearchParams({
-            'last': '72h',
+            'last': `${CONFIG.hoursBack}h`,
             'field_mask': 'up.uplink_message'
         });
 
         const url = `${DATA_URL}?${params.toString()}`;
-
-        log('Fetching data from ' + url + ' ...');
-
-        if (rawEl) rawEl.textContent = 'Loading...';
+        logDebug(`Fetching data from TTN (last ${CONFIG.hoursBack}h)...`);
 
         const resp = await fetch(url, { 
             cache: 'no-store',
@@ -39,61 +118,77 @@ async function fetchAndRender() {
             throw new Error(`HTTP ${resp.status}: ${errorText}`);
         }
 
-        const text = await resp.text();
+        const rawData = await resp.json();
+        latestData = rawData;
+        
+        logDebug(`Received ${rawData.length} messages from TTN`);
 
-        try {
-            const json = JSON.parse(text);
-            
-            // Show raw JSON
-            if (rawEl) rawEl.textContent = JSON.stringify(json, null, 2);
-            
-            // Check if we got data
-            if (!json || (Array.isArray(json) && json.length === 0)) {
-                log('No data returned from TTN. This might be normal if there are no recent uplinks.', false);
-            } else {
-                log(`Received ${Array.isArray(json) ? json.length : 1} message(s) from TTN`);
-            }
-            
-            // Normalize and update charts
-            const normalized = normalizeJson(json);
-            updateCharts(normalized);
-            log('Charts updated â€" ' + new Date().toLocaleTimeString());
-            
-        } catch (parseErr) {
-            if (rawEl) rawEl.textContent = text;
-            log('Response is not valid JSON â€" using fallback data. (' + parseErr.message + ')', true);
-            const normalized = normalizeJson();
-            updateCharts(normalized);
+        // Show limited sample in debug logger if configured
+        if (CONFIG.showDebugLogger && CONFIG.maxLoggerMessages > 0) {
+            const sampleSize = Math.min(CONFIG.maxLoggerMessages, rawData.length);
+            const sample = rawData.slice(-sampleSize);
+            logDebug(`Showing last ${sampleSize} of ${rawData.length} messages:`, sample);
+        } else if (CONFIG.showDebugLogger) {
+            logDebug('Full raw data:', rawData);
         }
+
+        // Parse sensor data from TTN messages
+        const dataPoints = parseSensorData(rawData);
+
+        if (!dataPoints || dataPoints.length === 0) {
+            logDebug('No valid sensor data found in messages');
+            updateStatusBar([], 'No Data');
+            showError('No sensor data available. Check if devices are sending data.');
+            return;
+        }
+
+        logDebug(`Parsed ${dataPoints.length} data points`);
+
+        // Update charts
+        updateCharts(dataPoints);
+        updateStatusBar(dataPoints, 'Connected');
 
     } catch (err) {
         console.error('Failed to fetch/parse data:', err);
-        log('Failed to load data: ' + (err && err.message), true);
-        if (rawEl) rawEl.textContent = 'Error: ' + (err && err.message);
+        logDebug('ERROR: ' + err.message);
         
-        // Use fallback data
-        const normalized = normalizeJson();
-        updateCharts(normalized);
+        updateStatusBar([], 'Error');
+        showError(`Failed to load data: ${err.message}`);
     }
 }
 
 function start() {
-    log('Initializing charts...');
-    createCharts();
+    // Apply UI configuration first
+    applyUIConfiguration();
     
-    log('Fetching initial data...');
+    logDebug('Initializing sensor dashboard...');
+    logDebug('Configuration:', CONFIG);
+    
+    // Create all charts (only enabled ones will be created)
+    createCharts();
+    logDebug('Charts initialized');
+    
+    // Fetch initial data
+    logDebug(`Fetching initial data (last ${CONFIG.hoursBack}h)...`);
     fetchAndRender();
     
-    if (POLL_INTERVAL_MS) {
-        log(`Polling enabled: will refresh every ${POLL_INTERVAL_MS/1000} seconds`);
-        setInterval(fetchAndRender, POLL_INTERVAL_MS);
+    // Set up polling if enabled
+    if (CONFIG.pollIntervalMs) {
+        logDebug(`Auto-refresh enabled: every ${CONFIG.pollIntervalMs/1000} seconds`);
+        setInterval(fetchAndRender, CONFIG.pollIntervalMs);
+    } else {
+        logDebug('Auto-refresh disabled');
     }
     
     // Expose for manual refresh
     window._fetchAndRender = fetchAndRender;
-    log('Ready! You can manually refresh by calling window._fetchAndRender() in the console.');
+    window._getLatestData = () => latestData;
+    window._getConfig = () => CONFIG;
+    
+    logDebug('Dashboard ready! Manual refresh: window._fetchAndRender()');
 }
 
+// Start when DOM is ready
 if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', start);
 } else {
