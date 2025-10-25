@@ -186,20 +186,6 @@ window._fetchAndRender()
 
 ---
 
-## Migration Checklist
-
-* Add `/api/config` endpoint to `app.js`
-* Replace old `chart.ejs` in `/views` folder
-* Add `config.js` to `/public` folder
-* Replace `client-app.js` in `/public` folder
-* Replace `chart-logic.js` in `/public` folder
-* Deploy to Azure
-* Test `/api/config` endpoint in browser
-* Add environment variables in Azure Portal (optional)
-* Test configuration changes without redeployment
-
----
-
 ## Quick Start
 
 **Minimal Setup (Use Defaults)**
