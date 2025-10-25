@@ -213,14 +213,14 @@ Check your Azure App Service logs to see when configuration is requested and whi
 
 ## FAQ
 
-**Q: Do I need to restart the app after changing settings?**
-A: Yes. Azure automatically restarts when you click Save in Configuration. This takes about 30 seconds.
+**Q: Do I need to redeploy the app after changing settings?**
+A: Yes, this takes between 10 seconds and 1 minute.
 
 **Q: Can I change settings while the app is running?**
 A: Yes, but changes require an app restart to take effect.
 
 **Q: What happens if I delete a setting?**
-A: The dashboard will use the default value for that setting.
+A: The app will use the default value for that setting.
 
 **Q: Can I use different settings for development vs production?**
 A: Yes. Each Azure App Service (dev/staging/production) has its own Configuration settings.
@@ -230,9 +230,6 @@ A: Create a `.env` file in your project root with the same variable names, or se
 
 **Q: Can I change the chart colors or styles via configuration?**
 A: No. Changing colors or styles requires modifying `chart-logic.js` and redeploying.
-
-**Q: Does this work with CI/CD pipelines?**
-A: Yes. Environment variables persist across deployments. Only code changes require redeployment.
 
 ---
 
