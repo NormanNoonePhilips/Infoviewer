@@ -16,77 +16,26 @@ const DATA_URL = '/api/data';
 
 let latestData = null;
 let debugMessages = [];
+let fetchController = null; // For aborting requests
+let isFirstLoad = true;
 
-function applyUIConfiguration() {
-    // Set dashboard title
-    const titleEl = document.getElementById('dashboardTitle');
-    if (titleEl) {
-        titleEl.textContent = getDashboardTitle();
-    }
+// Debounced Logging
+let debugLogQueue = [];
+let debugLogTimer = null;
 
-    const subtitleEl = document.getElementById('dashboardSubtitle');
-    if (subtitleEl) {
-        subtitleEl.textContent = `Real-time monitoring of environmental and motion sensors (Last ${getTimeRangeLabel()})`;
-    }
-
-    // Hide/show status bar
-    const statusBar = document.getElementById('statusBar');
-    if (statusBar && !CONFIG.showStatusBar) {
-        statusBar.classList.add('hidden');
-    }
-
-    // Hide/show data warning (same visibility as status bar)
-    const dataWarning = document.getElementById('dataWarning');
-    if (dataWarning && !CONFIG.showStatusBar) {
-        dataWarning.classList.add('hidden');
-    }
-
-    // Hide/show charts based on config
-    const chartCards = {
-        temperature: document.getElementById('card-temperature'),
-        pressure: document.getElementById('card-pressure'),
-        humidity: document.getElementById('card-humidity'),
-        distance: document.getElementById('card-distance'),
-        acceleration: document.getElementById('card-acceleration')
-    };
-
-    Object.entries(chartCards).forEach(([key, element]) => {
-        if (element && !CONFIG.charts[key]) {
-            element.classList.add('hidden');
-        }
-    });
-
-    // Hide/show debug section
-    const debugSection = document.getElementById('debugSection');
-    if (debugSection && !CONFIG.showDebugLogger) {
-        debugSection.classList.add('hidden');
-    }
-}
-
-function logDebug(message, data = null) {
-    if (!CONFIG.showDebugLogger) return;
-
-    console.log(message, data || '');
+function flushDebugLogs() {
+    if (!CONFIG.showDebugLogger || debugLogQueue.length === 0) return;
 
     const debugEl = document.getElementById('debugContent');
     if (!debugEl) return;
 
-    const timestamp = new Date().toLocaleTimeString('it-IT');
-    const logEntry = {
-        timestamp,
-        message,
-        data
-    };
+    // Batch update DOM only once
+    debugMessages.push(...debugLogQueue);
 
-    // Add to message array
-    debugMessages.push(logEntry);
-
-    // Trim array if we have a limit set
     if (CONFIG.maxLoggerMessages > 0 && debugMessages.length > CONFIG.maxLoggerMessages) {
         debugMessages = debugMessages.slice(-CONFIG.maxLoggerMessages);
     }
 
-    // Rebuild the entire debug content
     let fullContent = '';
     for (const entry of debugMessages) {
         fullContent += `[${entry.timestamp}] ${entry.message}\n`;
@@ -96,113 +45,238 @@ function logDebug(message, data = null) {
     }
 
     debugEl.textContent = fullContent;
-
-    // Auto-scroll to bottom
     debugEl.scrollTop = debugEl.scrollHeight;
+
+    debugLogQueue = [];
 }
 
+function logDebug(message, data = null) {
+    if (!CONFIG.showDebugLogger) return;
+
+    console.log(message, data || '');
+
+    const timestamp = new Date().toLocaleTimeString('it-IT');
+    debugLogQueue.push({ timestamp, message, data });
+
+    // Debounce DOM updates
+    clearTimeout(debugLogTimer);
+    debugLogTimer = setTimeout(flushDebugLogs, 100);
+}
+
+// Request Deduplication
+let pendingRequest = null;
+
 async function fetchAndRender() {
-    try {
-        clearError();
+    // If there's already a request in flight, return that promise
+    if (pendingRequest) {
+        logDebug('Request already in progress, waiting...');
+        return pendingRequest;
+    }
 
-        // Build query parameters using config
-        const params = new URLSearchParams({
-            'last': `${CONFIG.hoursBack}h`,
-            'field_mask': 'up.uplink_message'
-        });
+    // Abort any previous request
+    if (fetchController) {
+        fetchController.abort();
+    }
 
-        const url = `${DATA_URL}?${params.toString()}`;
-        logDebug(`Fetching data from TTN (last ${CONFIG.hoursBack}h = ${getTimeRangeLabel()})...`);
+    fetchController = new AbortController();
 
-        const resp = await fetch(url, {
-            cache: 'no-store',
-            headers: {
-                'Accept': 'application/json'
+    pendingRequest = (async () => {
+        try {
+            clearError();
+
+            const params = new URLSearchParams({
+                'last': `${CONFIG.hoursBack}h`,
+                'field_mask': 'up.uplink_message'
+            });
+
+            const url = `${DATA_URL}?${params.toString()}`;
+
+            if (isFirstLoad) {
+                logDebug(`Initial fetch from TTN (last ${getTimeRangeLabel()})...`);
+                isFirstLoad = false;
+            }
+
+            const resp = await fetch(url, {
+                cache: 'no-store',
+                headers: { 'Accept': 'application/json' },
+                signal: fetchController.signal
+            });
+
+            if (!resp.ok) {
+                const errorText = await resp.text();
+                throw new Error(`HTTP ${resp.status}: ${errorText}`);
+            }
+
+            const rawData = await resp.json();
+            latestData = rawData;
+
+            // Log cache status
+            const cacheStatus = resp.headers.get('X-Cache');
+            if (cacheStatus) {
+                logDebug(`Cache status: ${cacheStatus}`);
+            }
+
+            logDebug(`Received ${rawData.length} messages`);
+
+            // Data Parsing
+            const dataPoints = parseSensorData(rawData);
+
+            if (!dataPoints || dataPoints.length === 0) {
+                logDebug('No valid sensor data - displaying empty charts');
+
+                // Use requestAnimationFrame for DOM updates
+                requestAnimationFrame(() => {
+                    createEmptyCharts();
+                    updateStatusBar([], 'No Data');
+                    showError('No sensor data available in the selected time range.');
+                });
+                return;
+            }
+
+            logDebug(`Parsed ${dataPoints.length} data points`);
+
+            // Batch DOM Updates
+            requestAnimationFrame(() => {
+                updateCharts(dataPoints);
+                updateStatusBar(dataPoints, 'Connected');
+            });
+
+        } catch (err) {
+            if (err.name === 'AbortError') {
+                logDebug('Request aborted');
+                return;
+            }
+
+            console.error('Failed to fetch/parse data:', err);
+            logDebug('ERROR: ' + err.message);
+
+            requestAnimationFrame(() => {
+                createEmptyCharts();
+                updateStatusBar([], 'Error');
+                showError(`Failed to load data: ${err.message}`);
+            });
+        } finally {
+            pendingRequest = null;
+            fetchController = null;
+        }
+    })();
+
+    return pendingRequest;
+}
+
+// UI Updates
+function applyUIConfiguration() {
+    // Batch all DOM reads/writes
+    const elements = {
+        title: document.getElementById('dashboardTitle'),
+        subtitle: document.getElementById('dashboardSubtitle'),
+        statusBar: document.getElementById('statusBar'),
+        dataWarning: document.getElementById('dataWarning'),
+        debugSection: document.getElementById('debugSection'),
+        charts: {
+            temperature: document.getElementById('card-temperature'),
+            pressure: document.getElementById('card-pressure'),
+            humidity: document.getElementById('card-humidity'),
+            distance: document.getElementById('card-distance'),
+            acceleration: document.getElementById('card-acceleration')
+        }
+    };
+
+    // Single style recalculation
+    requestAnimationFrame(() => {
+        if (elements.title) {
+            elements.title.textContent = getDashboardTitle();
+        }
+
+        if (elements.subtitle) {
+            elements.subtitle.textContent =
+                `Real-time monitoring of environmental and motion sensors (Last ${getTimeRangeLabel()})`;
+        }
+
+        if (elements.statusBar && !CONFIG.showStatusBar) {
+            elements.statusBar.classList.add('hidden');
+        }
+
+        if (elements.dataWarning && !CONFIG.showStatusBar) {
+            elements.dataWarning.classList.add('hidden');
+        }
+
+        Object.entries(elements.charts).forEach(([key, element]) => {
+            if (element && !CONFIG.charts[key]) {
+                element.classList.add('hidden');
             }
         });
 
-        if (!resp.ok) {
-            const errorText = await resp.text();
-            throw new Error(`HTTP ${resp.status}: ${errorText}`);
+        if (elements.debugSection && !CONFIG.showDebugLogger) {
+            elements.debugSection.classList.add('hidden');
         }
+    });
+}
 
-        const rawData = await resp.json();
-        latestData = rawData;
+// Visibility API for Power Saving
+let pollInterval = null;
 
-        logDebug(`Received ${rawData.length} messages from TTN`);
-
-        // Show limited sample in debug logger if configured
-        if (CONFIG.showDebugLogger && CONFIG.maxLoggerMessages > 0) {
-            const sampleSize = Math.min(CONFIG.maxLoggerMessages, rawData.length);
-            const sample = rawData.slice(-sampleSize);
-            logDebug(`Showing last ${sampleSize} of ${rawData.length} messages:`, sample);
-        } else if (CONFIG.showDebugLogger) {
-            logDebug('Full raw data:', rawData);
-        }
-
-        // Parse sensor data from TTN messages
-        const dataPoints = parseSensorData(rawData);
-
-        if (!dataPoints || dataPoints.length === 0) {
-            logDebug('No valid sensor data found in messages - displaying empty charts');
-
-            // Create empty charts with current timestamp
-            createEmptyCharts();
-            updateStatusBar([], 'No Data');
-
-            showError('No sensor data available in the selected time range. Charts are empty.');
-            return;
-        }
-
-        logDebug(`Parsed ${dataPoints.length} data points`);
-
-        // Update charts with real data
-        updateCharts(dataPoints);
-        updateStatusBar(dataPoints, 'Connected');
-
-    } catch (err) {
-        console.error('Failed to fetch/parse data:', err);
-        logDebug('ERROR: ' + err.message);
-
-        // Create empty charts on error too
-        createEmptyCharts();
-        updateStatusBar([], 'Error');
-
-        showError(`Failed to load data: ${err.message}`);
+function startPolling() {
+    if (CONFIG.pollIntervalMs && CONFIG.pollIntervalMs > 0) {
+        logDebug(`Auto-refresh enabled: every ${CONFIG.pollIntervalMs / 1000}s`);
+        pollInterval = setInterval(fetchAndRender, CONFIG.pollIntervalMs);
+    } else {
+        logDebug('Auto-refresh disabled');
     }
+}
+
+function stopPolling() {
+    if (pollInterval) {
+        clearInterval(pollInterval);
+        pollInterval = null;
+    }
+}
+
+// Pause updates when page is hidden
+document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+        logDebug('Page hidden - pausing updates');
+        stopPolling();
+    } else {
+        logDebug('Page visible - resuming updates');
+        fetchAndRender(); // Immediate update
+        startPolling();
+    }
+});
+
+// Preconnect to API
+function preconnectAPI() {
+    const link = document.createElement('link');
+    link.rel = 'preconnect';
+    link.href = window.location.origin;
+    document.head.appendChild(link);
 }
 
 function start() {
     console.log('Starting dashboard with configuration:', CONFIG);
 
-    // Apply UI configuration
+    preconnectAPI();
     applyUIConfiguration();
 
     logDebug('Initializing sensor dashboard...');
     logDebug('Configuration:', CONFIG);
-    logDebug(`Time range: ${getTimeRangeLabel()}`);
 
-    // Create all charts (only enabled ones will be created)
     createCharts();
     logDebug('Charts initialized');
 
-    // Fetch initial data
-    logDebug(`Fetching initial data (last ${getTimeRangeLabel()})...`);
     fetchAndRender();
+    startPolling();
 
-    // Set up polling if enabled
-    if (CONFIG.pollIntervalMs && CONFIG.pollIntervalMs > 0) {
-        logDebug(`Auto-refresh enabled: every ${CONFIG.pollIntervalMs / 1000} seconds`);
-        setInterval(fetchAndRender, CONFIG.pollIntervalMs);
-    } else {
-        logDebug('Auto-refresh disabled');
-    }
-
-    // Expose for manual refresh
+    // Expose for manual operations
     window._fetchAndRender = fetchAndRender;
     window._getLatestData = () => latestData;
+    window._clearCache = () => {
+        latestData = null;
+        debugMessages = [];
+        logDebug('Cache cleared');
+    };
 
-    logDebug('Dashboard ready! Manual refresh: window._fetchAndRender()');
+    logDebug('Dashboard ready!');
 }
 
 // Start when DOM is ready
