@@ -2,7 +2,7 @@
 
 A real-time web dashboard for visualizing IoT sensor data from The Things Network (TTN). This Node.js/Express application fetches uplink messages from TTN's Storage Integration API and displays environmental and motion sensor readings in interactive charts.
 
-infoviewer-d5fmgzabe3hcgffh.westeurope-01.azurewebsites.net
+**Live URL:** infoviewer-d5fmgzabe3hcgffh.westeurope-01.azurewebsites.net
 
 ---
 
@@ -15,6 +15,7 @@ infoviewer-d5fmgzabe3hcgffh.westeurope-01.azurewebsites.net
 - **Historical Analysis** - Shows data trends over configurable time periods (hours/days)
 - **Interactive Charts** - Built with Chart.js for responsive, interactive visualizations
 - **Secure Authentication** - Uses Azure Key Vault for API key management
+- **Client-Side Configuration** - All dashboard settings managed in `/public/config.js`
 
 ### Supported Sensors
 The dashboard decodes and displays data from devices sending ASCII-encoded payloads with these measurements:
@@ -63,6 +64,8 @@ Te:22.3,Ti:21.8,Tb:22.5,P:984.2,H:43.6,Z:755,Ax:0.03,Ay:-0.02,Az:0.98
          ▼
 ┌─────────────────┐
 │  Web Dashboard  │ (Chart.js visualizations)
+│  + Client-Side  │ (config.js, client-app.js, chart-logic.js)
+│  Configuration  │
 └─────────────────┘
 ```
 
@@ -71,13 +74,13 @@ Te:22.3,Ti:21.8,Tb:22.5,P:984.2,H:43.6,Z:755,Ax:0.03,Ay:-0.02,Az:0.98
 ## Deployment
 
 ### Prerequisites
-- Node.js 14+ and npm
+- Node.js 16+ and npm
 - Azure Account (for Key Vault and Web App)
 - The Things Network account with application configured
 
 ---
 
-### Configure Environment Variables
+### Server Environment Variables
 
 #### Required Settings:
 ```bash
@@ -87,40 +90,39 @@ TTN_APP_ID=your-ttn-app-id
 TTN_CLUSTER=eu1  # or us1, au1, etc.
 ```
 
-#### Optional Dashboard Settings (see Configuration section):
-```bash
-DASHBOARD_HOURS_BACK=72
-DASHBOARD_POLL_INTERVAL=30000
-CHART_TEMPERATURE=true
-# ... see CONFIG_README.md for all options
-```
+These are set in Azure Portal → App Service → Configuration → Application settings.
 
 ---
 
 ## Configuration
 
+### Client-Side Configuration (Primary Method)
 
-### Available Settings:
+**All dashboard settings are managed in `/public/config.js`**. This file is served to the browser and controls:
+- Data fetch settings (time range, refresh interval)
+- Chart visibility (which charts to display)
+- Debug logger settings
+- UI customization
 
-See **[CONFIG_README.md](CONFIG_README.md)** for complete documentation including:
-- All environment variable names
-- Default values
-- Examples for common scenarios
-- Troubleshooting guide
+See **[CONFIG_README.md](CONFIG_README.md)** for complete documentation.
 
 ### Quick Settings Reference:
 
 | Setting | Default | Description |
 |---------|---------|-------------|
-| `DASHBOARD_HOURS_BACK` | `72` | Hours of historical data |
-| `DASHBOARD_POLL_INTERVAL` | `30000` | Auto-refresh interval (ms) |
-| `CHART_TEMPERATURE` | `true` | Show temperature chart |
-| `CHART_PRESSURE` | `true` | Show pressure chart |
-| `CHART_HUMIDITY` | `true` | Show humidity chart |
-| `CHART_DISTANCE` | `true` | Show distance chart |
-| `CHART_ACCELERATION` | `true` | Show acceleration chart |
-| `SHOW_DEBUG_LOGGER` | `true` | Show raw data logger |
-| `MAX_LOGGER_MESSAGES` | `5` | Max debug messages |
+| `hoursBack` | `72` | Hours of historical data to fetch |
+| `pollIntervalMs` | `30000` | Auto-refresh interval (ms) |
+| `customTitle` | `null` | Custom dashboard title |
+| `charts.temperature` | `true` | Show temperature chart |
+| `charts.pressure` | `true` | Show pressure chart |
+| `charts.humidity` | `true` | Show humidity chart |
+| `charts.distance` | `true` | Show distance chart |
+| `charts.acceleration` | `true` | Show acceleration chart |
+| `showDebugLogger` | `true` | Show raw data logger |
+| `maxLoggerMessages` | `5` | Max debug messages |
+| `showStatusBar` | `true` | Show status bar at top |
+
+**To modify settings:** Edit `/public/config.js` and redeploy (takes 10-60 seconds).
 
 ---
 
@@ -132,7 +134,7 @@ See **[CONFIG_README.md](CONFIG_README.md)** for complete documentation includin
 
 ### Check Key Expiration:
 1. Log in to [The Things Network Console](https://console.cloud.thethings.network/)
-2. Go to your Application - API Keys
+2. Go to your Application → API Keys
 3. Check the **"Expires"** column
 
 ### Recommended Settings:
@@ -152,7 +154,7 @@ az keyvault secret set \
 Your app will use the new key automatically (within 60 seconds due to caching).
 
 #### Option 2: Create New Key with Longer Expiration
-1. TTN Console - Your App - API Keys
+1. TTN Console → Your App → API Keys
 2. Click **"Add API key"**
 3. Set **Rights**: Read application traffic (uplink messages)
 4. Set **Expiration**: Maximum available or "No expiration"
@@ -175,16 +177,14 @@ These usually indicate an expired or invalid API key.
 
 ### Public Endpoints:
 - `GET /` - Dashboard home page
-- `GET /api/config` - Get dashboard configuration (JSON)
 
 ### Data Endpoints:
 - `GET /api/data?last=72h&field_mask=up.uplink_message` - Fetch TTN uplink messages
-- `GET /api/uplinks?last=72h` - Alternative uplink endpoint
 
 ### Debug/Test Endpoints:
 - `GET /api/debug` - Detailed TTN API response with parsing info
 - `GET /api/test-ttn` - Test TTN connection and credentials
-- `GET /api/testjson` - Sample JSON data for development
+- `GET /api/debug/files` - Check server file structure
 
 ---
 
@@ -210,20 +210,17 @@ http://localhost:3000
 # Test TTN connection
 curl http://localhost:3000/api/test-ttn
 
-# Test configuration
-curl http://localhost:3000/api/config
-
 # Test data fetch
 curl http://localhost:3000/api/data?last=1h
+
+# Check file structure
+curl http://localhost:3000/api/debug/files
 ```
 
 ### Browser Console Commands:
 ```javascript
 // Get current configuration
 window._getConfig()
-
-// Reload configuration from server
-await window._reloadConfig()
 
 // Manual data refresh
 window._fetchAndRender()
@@ -238,13 +235,12 @@ window._getLatestData()
 
 ### Azure Portal Logs:
 ```
-App Services - [Your App] - Log stream
+App Services → [Your App] → Log stream
 ```
 
 ### Key Log Messages:
 ```
 Application starting...
-Serving dashboard configuration: {...}
 Fetching from TTN Storage Integration: ...
 Successfully parsed X messages from TTN
 KeyVault error: ... (indicates API key issue)
@@ -257,20 +253,20 @@ KeyVault error: ... (indicates API key issue)
 ### No Data Appearing:
 1. Check TTN Console - are devices sending data?
 2. Verify API key is valid: `/api/test-ttn`
-3. Check configuration: `/api/config`
-4. Look for errors in browser console (F12)
-5. Check Azure logs for authentication errors
+3. Check browser console for fetch errors (F12)
+4. Look for errors in Azure logs for authentication errors
+5. Verify `hoursBack` setting in `/public/config.js` matches expected data availability
 
 ### Charts Not Updating:
-1. Verify `DASHBOARD_POLL_INTERVAL` is set and greater than 0
+1. Verify `pollIntervalMs` is set and greater than 0 in `/public/config.js`
 2. Check browser console for fetch errors
 3. Test manual refresh: `window._fetchAndRender()`
 
 ### Configuration Not Working:
-1. Verify environment variables are set in Azure Portal
-2. Check `/api/config` returns expected values
-3. Clear browser cache (Ctrl+Shift+R)
-4. Ensure config.js is deployed to `/public` folder
+1. Verify `/public/config.js` has been deployed
+2. Clear browser cache (Ctrl+Shift+R)
+3. Check browser console: `window._getConfig()`
+4. Ensure config.js is accessible: `http://your-app.azurewebsites.net/config.js`
 
 ### Authentication Errors:
 1. **Check API key expiration** in TTN Console
@@ -285,7 +281,8 @@ KeyVault error: ... (indicates API key issue)
 - API keys stored in Azure Key Vault (never in code)
 - Managed Identity for Key Vault access (no passwords)
 - HTTPS enforced on Azure App Service
-- Environment variables for configuration
+- Environment variables for server configuration
+- Client-side configuration file for dashboard settings
 - Regular API key rotation (set calendar reminders!)
 - Monitor logs for unauthorized access attempts
 
@@ -293,7 +290,7 @@ KeyVault error: ... (indicates API key issue)
 
 ## Documentation
 
-- **[CONFIG_README.md](CONFIG_README.md)** - Complete configuration guide
+- **[CONFIG_README.md](CONFIG_README.md)** - Complete client-side configuration guide
 - **[TTN Storage Integration API](https://www.thethingsindustries.com/docs/integrations/storage/)** - TTN API documentation
 - **[Azure Key Vault](https://docs.microsoft.com/azure/key-vault/)** - Key Vault documentation
 
@@ -318,10 +315,7 @@ KeyVault error: ... (indicates API key issue)
 4. Test thoroughly (especially configuration changes)
 5. Submit a pull request
 
-**Note**: When adding new configuration options:
-- Add environment variable to `app.js` `/api/config` endpoint
-- Update `CONFIG_README.md` with new setting
-- Test with both default and custom values
+**Note**: When adding new configuration options, update both `/public/config.js` and `CONFIG_README.md`.
 
 ---
 
@@ -338,14 +332,14 @@ For issues or questions:
 ## Quick Start Checklist
 
 - [ ] Deploy code to Azure App Service
-- [ ] Configure environment variables in Azure Portal
+- [ ] Configure server environment variables in Azure Portal
 - [ ] Create TTN API key (with long expiration!)
 - [ ] Store API key in Azure Key Vault
 - [ ] Enable Managed Identity for Web App
 - [ ] Grant Key Vault access to Web App identity
 - [ ] Test `/api/test-ttn` endpoint
-- [ ] Test `/api/config` endpoint
 - [ ] Access dashboard and verify data appears
+- [ ] Customize dashboard in `/public/config.js` if needed
 - [ ] **Set calendar reminder for API key expiration!**
 - [ ] Bookmark CONFIG_README.md for configuration changes
 
