@@ -35,6 +35,12 @@ function applyUIConfiguration() {
         statusBar.classList.add('hidden');
     }
 
+    // Hide/show data warning (same visibility as status bar)
+    const dataWarning = document.getElementById('dataWarning');
+    if (dataWarning && !CONFIG.showStatusBar) {
+        dataWarning.classList.add('hidden');
+    }
+
     // Hide/show charts based on config
     const chartCards = {
         temperature: document.getElementById('card-temperature'),

@@ -89,6 +89,22 @@
       display: none;
     }
 
+    .data-warning {
+      margin-bottom: 24px;
+    }
+
+    .data-warning.hidden {
+      display: none;
+    }
+
+    .warning-text {
+      font-style: italic;
+      color: #718096;
+      font-size: 0.9rem;
+      line-height: 1.5;
+      margin: 0;
+    }
+
     .status-card {
       background: white;
       padding: 12px 18px;
@@ -253,6 +269,14 @@
         <div class="status-label">Last Update</div>
         <div class="status-value" id="lastUpdateValue">-</div>
       </div>
+    </div>
+
+    <div class="data-warning" id="dataWarning">
+      <p class="warning-text">
+        The data source limits responses to 1000 data points per refresh.
+        If your selected range contains more than 1000 points the API returns older points first, omitting the newest
+        data; please consider reducing the time frame of this application.
+      </p>
     </div>
 
     <div id="errorContainer"></div>
