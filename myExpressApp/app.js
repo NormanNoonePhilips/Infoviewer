@@ -12,10 +12,10 @@ console.log('TTN_APP_ID:', process.env.TTN_APP_ID);
 console.log('TTN_SECRET_NAME:', process.env.TTN_SECRET_NAME);
 console.log('========================================');
 
-
 const express = require('express');
 const path = require('path');
 const axios = require('axios');
+const fs = require('fs');
 const { DefaultAzureCredential } = require('@azure/identity');
 const { SecretClient } = require('@azure/keyvault-secrets');
 
@@ -66,8 +66,20 @@ async function getAppSecret() {
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
 
+// Request logging middleware
+app.use((req, res, next) => {
+    console.log(`${req.method} ${req.url}`);
+    next();
+});
+
 // Serve static client-side files from /public
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static(path.join(__dirname, 'public'), {
+    setHeaders: (res, filepath) => {
+        if (filepath.endsWith('.js')) {
+            res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
+        }
+    }
+}));
 
 // Render main page
 app.get('/', (req, res) => {
@@ -81,14 +93,76 @@ app.get('/', (req, res) => {
 });
 
 /**
+ * Configuration endpoint - serves dashboard settings
+ */
+app.get('/api/config', (req, res) => {
+    const config = {
+        // Data fetch settings
+        hoursBack: parseInt(process.env.DASHBOARD_HOURS_BACK || '72', 10),
+        pollIntervalMs: parseInt(process.env.DASHBOARD_POLL_INTERVAL || '30000', 10),
+        customTitle: process.env.DASHBOARD_CUSTOM_TITLE || null,
+
+        // Chart visibility
+        charts: {
+            temperature: process.env.CHART_TEMPERATURE !== 'false',
+            pressure: process.env.CHART_PRESSURE !== 'false',
+            humidity: process.env.CHART_HUMIDITY !== 'false',
+            distance: process.env.CHART_DISTANCE !== 'false',
+            acceleration: process.env.CHART_ACCELERATION !== 'false'
+        },
+
+        // Debug settings
+        showDebugLogger: process.env.SHOW_DEBUG_LOGGER !== 'false',
+        maxLoggerMessages: parseInt(process.env.MAX_LOGGER_MESSAGES || '5', 10),
+
+        // UI settings
+        showStatusBar: process.env.SHOW_STATUS_BAR !== 'false'
+    };
+
+    console.log('Serving dashboard configuration:', config);
+    res.json(config);
+});
+
+/**
+ * Debug endpoint - check file structure
+ */
+app.get('/api/debug/files', (req, res) => {
+    const publicDir = path.join(__dirname, 'public');
+    const viewsDir = path.join(__dirname, 'views');
+
+    try {
+        const publicFiles = fs.existsSync(publicDir)
+            ? fs.readdirSync(publicDir)
+            : ['PUBLIC DIR NOT FOUND'];
+
+        const viewFiles = fs.existsSync(viewsDir)
+            ? fs.readdirSync(viewsDir)
+            : ['VIEWS DIR NOT FOUND'];
+
+        res.json({
+            __dirname: __dirname,
+            publicDir: publicDir,
+            viewsDir: viewsDir,
+            publicExists: fs.existsSync(publicDir),
+            viewsExists: fs.existsSync(viewsDir),
+            publicFiles: publicFiles,
+            viewFiles: viewFiles,
+            clientAppExists: fs.existsSync(path.join(publicDir, 'client-app.js')),
+            configExists: fs.existsSync(path.join(publicDir, 'config.js')),
+            chartLogicExists: fs.existsSync(path.join(publicDir, 'chart-logic.js'))
+        });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+/**
  * Proxy endpoint to TTN Storage Integration API
- * Fetches uplink messages from The Things Stack
  */
 app.get('/api/data', async (req, res) => {
     try {
         const secret = await getAppSecret();
 
-        // Get query parameters with defaults
         const last = req.query.last || '1h';
         const fieldMask = req.query.field_mask || 'up.uplink_message';
 
@@ -96,7 +170,6 @@ app.get('/api/data', async (req, res) => {
 
         console.log('Fetching from TTN Storage Integration:', url);
         console.log('Parameters: last=' + last + ', field_mask=' + fieldMask);
-        console.log('Using cluster:', ttnCluster, 'App ID:', ttnAppId);
 
         const resp = await axios.get(url, {
             params: {
@@ -124,7 +197,7 @@ app.get('/api/data', async (req, res) => {
             });
         }
 
-        // Parse the event stream format (newline-delimited JSON)
+        // Parse event stream
         const lines = resp.data.split('\n').filter(line => line.trim());
         const messages = [];
 
@@ -138,8 +211,6 @@ app.get('/api/data', async (req, res) => {
         }
 
         console.log(`Successfully parsed ${messages.length} messages from TTN`);
-
-        // Return as JSON array
         return res.json(messages);
 
     } catch (err) {
@@ -150,20 +221,18 @@ app.get('/api/data', async (req, res) => {
         }
         return res.status(502).json({
             error: 'Failed to fetch data from TTN',
-            details: err.message,
-            hint: 'Check if TTN_APP_ID, TTN_CLUSTER, and API key are correct'
+            details: err.message
         });
     }
 });
 
-// Dedicated endpoint for uplinks
+// Other endpoints (uplinks, debug, test-ttn) remain the same...
+
 app.get('/api/uplinks', async (req, res) => {
     try {
         const secret = await getAppSecret();
-
         const last = req.query.last || '1h';
         const fieldMask = req.query.field_mask || 'up.uplink_message';
-
         const url = `https://${ttnCluster}.cloud.thethings.network/api/v3/as/applications/${ttnAppId}/packages/storage/uplink_message?last=${last}&field_mask=${fieldMask}`;
 
         console.log('Fetching uplinks from:', url);
@@ -182,7 +251,6 @@ app.get('/api/uplinks', async (req, res) => {
             return res.status(resp.status).json({ error: 'TTN API error', details: resp.data });
         }
 
-        // Parse event stream to JSON array
         const lines = resp.data.split('\n').filter(line => line.trim());
         const messages = lines.map(line => {
             try {
@@ -202,24 +270,15 @@ app.get('/api/uplinks', async (req, res) => {
     }
 });
 
-// Debug endpoint - tests TTN V3 Storage Integration with detailed response
 app.get('/api/debug', async (req, res) => {
     try {
         const secret = await getAppSecret();
-
         const last = req.query.last || '1h';
         const fieldMask = req.query.field_mask || 'up.uplink_message';
         const url = `https://${ttnCluster}.cloud.thethings.network/api/v3/as/applications/${ttnAppId}/packages/storage/uplink_message`;
 
-        console.log('Debug: Testing URL:', url);
-        console.log('Debug: Using cluster:', ttnCluster);
-        console.log('Debug: Using app ID:', ttnAppId);
-
         const resp = await axios.get(url, {
-            params: {
-                last: last,
-                field_mask: fieldMask
-            },
+            params: { last, field_mask: fieldMask },
             headers: {
                 'Accept': 'text/event-stream',
                 'Authorization': `Bearer ${secret}`
@@ -229,7 +288,6 @@ app.get('/api/debug', async (req, res) => {
             timeout: 30000
         });
 
-        // Parse event stream
         let parsedMessages = [];
         if (resp.status === 200) {
             const lines = resp.data.split('\n').filter(line => line.trim());
@@ -248,37 +306,25 @@ app.get('/api/debug', async (req, res) => {
             cluster: ttnCluster,
             appId: ttnAppId,
             status: resp.status,
-            statusText: resp.statusText,
-            headers: resp.headers,
             rawDataLength: resp.data?.length || 0,
-            rawDataPreview: resp.data?.substring(0, 500) || '',
             parsedMessageCount: parsedMessages.length,
-            parsedMessages: parsedMessages.slice(0, 5),
-            params: {
-                last: last,
-                field_mask: fieldMask
-            }
+            parsedMessages: parsedMessages.slice(0, 5)
         });
     } catch (err) {
-        console.error('/api/debug error:', err && err.stack ? err.stack : err);
         return res.status(500).json({
             success: false,
-            error: err.message || String(err),
-            details: err.response?.data || null,
-            responseStatus: err.response?.status || null
+            error: err.message,
+            details: err.response?.data || null
         });
     }
 });
 
-// Quick test endpoint
 app.get('/api/test-ttn', async (req, res) => {
     try {
         const secret = await getAppSecret();
         const url = `https://${ttnCluster}.cloud.thethings.network/api/v3/applications/${ttnAppId}`;
 
         console.log('Testing TTN connection:', url);
-        console.log('Using cluster:', ttnCluster);
-        console.log('Using app ID:', ttnAppId);
 
         const resp = await axios.get(url, {
             headers: {
@@ -294,17 +340,12 @@ app.get('/api/test-ttn', async (req, res) => {
             success: resp.status === 200,
             message: resp.status === 200 ? 'Connection successful!' : 'Connection failed',
             url: url,
-            cluster: ttnCluster,
-            appId: ttnAppId,
-            data: resp.data,
-            headers: resp.headers
+            data: resp.data
         });
     } catch (err) {
-        console.error('Test TTN error:', err);
         return res.status(500).json({
             success: false,
-            error: err.message,
-            details: err.response?.data || null
+            error: err.message
         });
     }
 });

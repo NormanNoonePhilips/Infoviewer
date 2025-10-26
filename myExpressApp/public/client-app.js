@@ -18,7 +18,7 @@ let latestData = null;
 let debugMessages = [];
 
 function applyUIConfiguration() {
-    // Set dashboard title (without emoji)
+    // Set dashboard title
     const titleEl = document.getElementById('dashboardTitle');
     if (titleEl) {
         titleEl.textContent = getDashboardTitle();
@@ -106,7 +106,7 @@ async function fetchAndRender() {
         });
 
         const url = `${DATA_URL}?${params.toString()}`;
-        logDebug(`Fetching data from TTN (last ${CONFIG.hoursBack}h)...`);
+        logDebug(`Fetching data from TTN (last ${CONFIG.hoursBack}h = ${getTimeRangeLabel()})...`);
 
         const resp = await fetch(url, {
             cache: 'no-store',
@@ -167,22 +167,25 @@ async function fetchAndRender() {
 }
 
 function start() {
-    // Apply UI configuration first
+    console.log('Starting dashboard with configuration:', CONFIG);
+
+    // Apply UI configuration
     applyUIConfiguration();
 
     logDebug('Initializing sensor dashboard...');
     logDebug('Configuration:', CONFIG);
+    logDebug(`Time range: ${getTimeRangeLabel()}`);
 
     // Create all charts (only enabled ones will be created)
     createCharts();
     logDebug('Charts initialized');
 
     // Fetch initial data
-    logDebug(`Fetching initial data (last ${CONFIG.hoursBack}h)...`);
+    logDebug(`Fetching initial data (last ${getTimeRangeLabel()})...`);
     fetchAndRender();
 
     // Set up polling if enabled
-    if (CONFIG.pollIntervalMs) {
+    if (CONFIG.pollIntervalMs && CONFIG.pollIntervalMs > 0) {
         logDebug(`Auto-refresh enabled: every ${CONFIG.pollIntervalMs / 1000} seconds`);
         setInterval(fetchAndRender, CONFIG.pollIntervalMs);
     } else {
@@ -192,7 +195,6 @@ function start() {
     // Expose for manual refresh
     window._fetchAndRender = fetchAndRender;
     window._getLatestData = () => latestData;
-    window._getConfig = () => CONFIG;
 
     logDebug('Dashboard ready! Manual refresh: window._fetchAndRender()');
 }
