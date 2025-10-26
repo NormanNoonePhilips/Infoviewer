@@ -10,7 +10,7 @@ export const CONFIG = {
     // Auto-refresh interval in milliseconds (30000 = 30 seconds)
     // Set to 0 or null to disable auto-refresh
     // Default: 30000
-    pollIntervalMs: 30000,
+    pollIntervalMs: 10000,
 
     // Custom dashboard title (leave null to auto-generate)
     // Default: null
