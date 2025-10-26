@@ -12,24 +12,24 @@ const commonOptions = {
     animation: {
         duration: 300 // Faster animations
     },
-    interaction: { 
-        mode: 'index', 
-        intersect: false 
+    interaction: {
+        mode: 'index',
+        intersect: false
     },
     plugins: {
-        legend: { 
+        legend: {
             position: 'top',
             labels: {
                 usePointStyle: true, // Smaller legend items
                 padding: 10
             }
         },
-        tooltip: { 
-            mode: 'index', 
+        tooltip: {
+            mode: 'index',
             intersect: false,
             callbacks: {
                 // Format tooltips efficiently
-                label: function(context) {
+                label: function (context) {
                     let label = context.dataset.label || '';
                     if (label) {
                         label += ': ';
@@ -56,8 +56,8 @@ const commonOptions = {
                 minRotation: 0
             }
         },
-        y: { 
-            display: true, 
+        y: {
+            display: true,
             beginAtZero: false,
             ticks: {
                 maxTicksLimit: 8 // Limit y-axis labels
@@ -197,7 +197,7 @@ export function parseSensorData(ttnMessages) {
 
     for (let i = 0; i < ttnMessages.length; i++) {
         const msg = ttnMessages[i];
-        
+
         // Fast path: check structure first
         const uplink = msg?.result?.uplink_message;
         if (!uplink) continue;
@@ -233,8 +233,8 @@ export function parseSensorData(ttnMessages) {
     return dataPoints;
 }
 
-// Data Sampling for Large Datasets
-function sampleData(dataPoints, maxPoints = 500) {
+// Data Sampling for Large Datasets - UPDATED TO 999
+function sampleData(dataPoints, maxPoints = 999) {
     if (dataPoints.length <= maxPoints) return dataPoints;
 
     const sampledPoints = [];
@@ -307,8 +307,8 @@ export function updateCharts(dataPoints) {
         return;
     }
 
-    // Sample data if too many points
-    const displayPoints = sampleData(dataPoints, 500);
+    // Sample data if too many points - UPDATED TO 999
+    const displayPoints = sampleData(dataPoints, 999);
 
     // Generate labels once
     const labels = displayPoints.map(dp =>
@@ -403,8 +403,8 @@ export function updateAllCharts(dataPoints) {
         return;
     }
 
-    // Sample data if too many points
-    const displayPoints = sampleData(dataPoints, 500);
+    // Sample data if too many points - UPDATED TO 999
+    const displayPoints = sampleData(dataPoints, 999);
 
     // Generate labels once
     const labels = displayPoints.map(dp =>
